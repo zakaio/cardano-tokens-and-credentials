@@ -1,0 +1,25 @@
+{
+ "name": "Link between DID and Address",
+ "version": "1.0",
+ "id":"https://proofspace.id/prism-schemas/token-credentials/locked-amound",
+ "description":  "proof, that address linked to did have some amount locked in smart-contract",
+ "properties": {
+    "tag": { "type": "string" },
+    "address": { "type": "string"},
+    "lockAmount": { "type": "decimal" },
+    "lockTime": { 
+	 "type": "timestamp",
+	 "description": "time, until lock is valid. After expiring this time, payment will return to back",
+	 "timeOf" : "expiration"
+    },
+    "lockInput": { "type": "string" },
+    "tokenName": {  "type": "string" },
+    "transactionId": { "type" : "string" },
+    "unlockKey": { 
+	    "type" : "string",
+	    "title" : "Unlock Key",
+	    "description" : "If this value is not 'none', than entity who receive this credential can unlock amount and receive token"
+       }
+ }
+}
+

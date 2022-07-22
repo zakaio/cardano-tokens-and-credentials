@@ -1,25 +1,18 @@
 {
  "name": "Link between DID and Address",
  "version": "1.0",
- "id":"https://proofspace.id/prism-schemas/locked-amound",
- "description":  "proof, that address linked to did have some tokens locked on amount",
+ "id":"https://proofspace.id/prism-schemas/unspend-output",
+ "description":  "proof, that address linked to did have unspend tokens connected with address. They are not locked, verifier should check that this output is not spend",
  "properties": {
     "tag": { "type": "string" },
     "address": { "type": "string"},
-    "lockAmount": { "type": "decimal" },
-    "lockTime": { 
-	 "type": "timestamp",
-	 "description": "time, until lock is valid. After expiring this time, payment will return to back",
-	 "timeOf" : "expiration"
-    },
-    "lockInput": { "type": "string" },
+    "amount": { "type": "decimal" },
     "tokenName": {  "type": "string" },
     "transactionId": { "type" : "string" },
-    "unlockKey": { 
-	    "type" : "string",
-	    "title" : "Unlock Key",
-	    "description" : "If this value is not 'none', than entity who receive this credential can unlock amount and receive token"
-       }
+    "issueDate": {
+	 "type": "timestamp",
+	 "timeOf" : "issuing"
+    }
  }
 }
 

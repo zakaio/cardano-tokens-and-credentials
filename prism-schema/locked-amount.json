@@ -9,7 +9,7 @@
     "lockAmount": { "type": "decimal" },
     "lockTime": { 
 	 "type": "timestamp",
-	 "description": "time, until lock is valid. After expiring this time, payment will return to back",
+	 "description": "time, until lock is valid. After expiring this time, owner can return unspend amount back",
 	 "timeOf" : "expiration"
     },
     "lockInput": { "type": "string" },

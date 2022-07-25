@@ -8,16 +8,16 @@ actor Customer
 actor TCProxy
 actor TCAddress
 actor CustomerNewAddress
-Customer ->> TCProxy: Link my Did with address.
-TCProxy ->> Customer: Code
+Customer ->> TCProxy: (1) link my Did with address.
+TCProxy ->> Customer: (2) Code which should be submitted to blockchain.
 alt customer use payment from own tool
-  Customer ->> TCAddress: transaction, wich include code from customer address.
+  Customer ->> TCAddress: (3.1.1) transaction, wich include code from customer address.
 else
-  TCProxy ->> Customer: new random address with key
+  TCProxy ->> Customer: (3.2.1) new random address with key
   activate CustomerNewAddress
-  Customer ->> CustomerNewAddress: transaction
-  CustomerNewAddress ->> TCAddress: transaction, which include code from CustomerNewAddress
+  Customer ->> CustomerNewAddress: (3.2.2) any transaction
+  CustomerNewAddress ->> TCAddress: (3.2.3) transaction, which include code from CustomerNewAddress
 end
-TCProxy ->> Customer: credential wich link did and address.
+TCProxy ->> Customer: (4) credential wich link did and address.
 ```
 

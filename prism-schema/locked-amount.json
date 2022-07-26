@@ -1,5 +1,5 @@
 {
- "name": "Link between DID and Address",
+ "name": "Locked Amount",
  "version": "1.0",
  "id":"https://proofspace.id/prism-schemas/token-credentials/locked-amound",
  "description":  "proof, that address linked to did have some amount locked in smart-contract",
@@ -9,7 +9,7 @@
     "lockAmount": { "type": "decimal" },
     "lockTime": { 
 	 "type": "timestamp",
-	 "description": "time, until lock is valid. After expiring this time, payment will return to back",
+	 "description": "time, until lock is valid. After expiring this time, owner can return unspend amount back",
 	 "timeOf" : "expiration"
     },
     "lockInput": { "type": "string" },

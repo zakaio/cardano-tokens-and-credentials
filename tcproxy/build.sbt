@@ -1,6 +1,8 @@
 
 
-val tapirVersion = "1.0.0"
+val akkaVersion = "2.6.19"
+val akkaHttpVersion = "10.2.9"
+
 
 resolvers += "IOHK repo" at "https://maven.pkg.github.com/input-output-hk/atala-prism-sdk"
 credentials += Credentials( file("iohk.credentials") )
@@ -11,9 +13,15 @@ resolvers += "Kotlinx coroutines" at "https://maven.pkg.jetbrains.space/public/p
 name := "token-search"
 scalaVersion := "3.1.1"
 libraryDependencies ++= Seq(
-  ("com.softwaremill.sttp.tapir" %% "tapir-core" % tapirVersion).cross(CrossVersion.for3Use2_13),
-  ("com.softwaremill.sttp.tapir" %% "tapir-akka-http-server" % tapirVersion).cross(CrossVersion.for3Use2_13),
-  ("com.softwaremill.sttp.tapir" %% "tapir-sttp-client" % tapirVersion).cross(CrossVersion.for3Use2_13) ,
+ 
+  ("com.typesafe.akka" %% "akka-actor-typed" % akkaVersion).cross(CrossVersion.for3Use2_13),
+  ("com.typesafe.akka" %% "akka-stream" % akkaVersion).cross(CrossVersion.for3Use2_13),
+  ("com.typesafe.akka" %% "akka-http" % akkaHttpVersion).cross(CrossVersion.for3Use2_13),
+ 
+  "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % "2.13.38",
+  "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.13.38" % "compile-internal",
+
+
   "com.github.jwt-scala" %% "jwt-core" % "9.0.5",
   "com.geirsson" %% "metaconfig-typesafe-config" % "0.10.0",
   "com.github.rssh" %% "dotty-cps-async" % "0.9.10",

@@ -2,33 +2,45 @@ package proofspace.cardano.tokenConnector
 
 import akka.actor.ActorSystem
 import akka.http.scaladsl.Http
+import akka.http.scaladsl.model.*
+import akka.http.scaladsl.server.Directives.*
 import akka.http.scaladsl.server.Route
 
-import scala.concurrent.{Await, Future}
+import scala.concurrent.*
 import scala.concurrent.duration.*
-import sttp.client3.*
 
 import cps.*
 import cps.monads.{*, given}
 
 import proofspace.cardano.tokenConnector.dto.*
+import proofspace.cardano.tokenConnector.util.*
+
 
 object Main {
 
     implicit val actorSystem: ActorSystem = ActorSystem()
     import actorSystem.dispatcher
 
-    val submitDidEndpoint: PublicEndpoint[String, HttpErrorDTO, String, Any] =
-         endpoint.post.in("submitDid").in(query[String]("did")).out(stringBody).errorOut(jsonBody[HttpErrorDTO])
+    val route =
+        path("hello") {
+          get {
+            complete(HttpEntity(ContentTypes.`text/html(UTF-8)`, "<h1>Say hello to akka-http</h1>"))
+          }
+        }
 
-    def submitDidAction(did: String): Future[Either[HttpErrorDTO,String]] = async[Future] {
-         Right(s"${did} submitted")
-    }     
+    val shutdownPromise = Promise[String]()    
 
-    val submitRoute: Route = 
-            AkkaHttpServerInterpreter().toRoute(submitDidEndpoint.serverLogic(submitDidAction))
-          
+    def main(args: Array[String]): Unit = {    
+        
+        val bindingFuture = Http().newServerAt("localhost", 8080).bind(route)
+        println(s"Server now online. Please navigate to http://localhost:8080/hello")
 
+        val msg = Await.result(shutdownPromise.future, Duration.Inf)
+        println(s"finishing ($msg)")
+
+        bindingFuture.flatMap(_.unbind()).onComplete(_ => actorSystem.terminate()) 
+
+    }
 
 }
 

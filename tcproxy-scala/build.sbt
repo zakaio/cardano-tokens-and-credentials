@@ -33,7 +33,8 @@ libraryDependencies ++= Seq(
   "io.iohk.atala" % "prism-api" % "v1.3.3",
   "org.jetbrains.kotlin" % "kotlin-stdlib" % "1.6.20",
 
-  ("solutions.iog" %% "psg-cardano-wallet-api" % "0.3.4").cross(CrossVersion.for3Use2_13)
+  ("solutions.iog" %% "psg-cardano-wallet-api" % "0.3.4").cross(CrossVersion.for3Use2_13),
+   "com.bloxbean.cardano" % "cardano-client-lib" % "0.2.0"
 
 
 )

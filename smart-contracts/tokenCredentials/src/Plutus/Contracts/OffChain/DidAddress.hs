@@ -5,6 +5,7 @@
 {-# LANGUAGE DerivingStrategies         #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FunctionalDependencies     #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
@@ -16,6 +17,7 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeOperators              #-}
 {-# LANGUAGE ViewPatterns               #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 
 -- | Receive 
@@ -33,6 +35,7 @@ import           Control.Monad         (void)
 import           Data.Map              (Map)
 import qualified Data.Map              as Map
 import           Data.Maybe            (catMaybes)
+import           System.Random         
 import           Plutus.V1.Ledger.Api  (Address, ScriptContext, Validator, Value, Datum(Datum))
 import qualified Ledger
 import qualified Ledger.Ada            as Ada
@@ -71,51 +74,52 @@ data ClaimDidParams = ClaimDidParams
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
--- | Pair of (did, code), which allow to find 
--- | TODO: check for overflow. (persistent).
--- | Currently this is toy implementation, real with the same interface
--- | to the blockchain will be in other language.
-data State = CmdMapSet (Map String String) 
-              |
-             CmdMapPut String String
-              |
-             CmdMapRemove String
-               deriving stock (Eq, Show, Generic)
-               deriving anyclass (FromJSON, ToJSON)
 
-instance Semigroup State where
+class StateCommand s c | s->c where
+    initState :: s
+    apply :: c->s->s
+    merge :: s->s->s
+    
+data StateOrCommand s c  =  SetState s
+                           |
+                            Command c
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON)
+
+ 
+instance (StateCommand s c) => Semigroup (StateOrCommand s c) where
    a <> b =
-      let r = case a of 
-               CmdMapSet ma ->
-                 case b of 
-                     CmdMapSet mb ->
-                        Map.union ma mb
-                     CmdMapPut kb vb ->
-                        Map.insert kb vb ma
-                     CmdMapRemove kb ->
-                        Map.delete kb ma
-               CmdMapPut ka va  ->
-                 case b of 
-                     CmdMapSet mb ->
-                        Map.insert ka va mb
-                     CmdMapPut kb vb ->
-                        Map.insert ka va (Map.singleton kb vb)
-                     CmdMapRemove kb ->
-                        if (ka == kb) then Map.empty else (Map.singleton ka va)
-               CmdMapRemove ka ->
-                 case b of 
-                     CmdMapSet mb ->
-                        Map.delete ka mb
-                     CmdMapPut kb vb ->
-                        if (ka == kb) then Map.empty else (Map.singleton kb vb)
-                     CmdMapRemove kb ->
-                        Map.empty
-      in (CmdMapSet r)
-                 
+     let sa = case a of
+               SetState sa -> sa
+               Command ca -> apply ca initState
+     in
+       let r = case b of
+               SetState sb -> merge sa sb
+               Command cb -> apply cb sa
+       in (SetState r)
+
+instance (StateCommand s c) => Monoid (StateOrCommand s c) where
+    mempty = SetState initState
+
+data MapCommand = PutRandom String String -- intercepted by state update effect and generate random value
+                     |
+                      Put String String  -- add key and valut to map. internal, result of interception.
+                     |
+                      Delete String
+                    deriving stock (Eq, Show, Generic)
+                    deriving anyclass (FromJSON, ToJSON)
+
+instance StateCommand (Map String String) MapCommand where
+       initState = Map.empty
+       apply c s = case c of
+                     PutRandom did entropy -> Map.insert did entropy s -- will be never called when random effect is enabled.
+                     Put did code -> Map.insert did code s
+                     Delete did -> Map.delete did s
+       merge x y = Map.union x y
 
 
-instance Monoid State where
-   mempty = (CmdMapSet Map.empty)
+
+type State = StateOrCommand (Map String String) MapCommand
                  
 
 -- | The "submitDid" contract endpoint. See note [Contract endpoints]
@@ -125,11 +129,11 @@ instance Monoid State where
 -- | But we will leave imlementation here
 submitDid :: AsContractError e => Promise State DidAddressSchema e ()
 submitDid = endpoint @"submitDid" @SubmitDidParams $ \(SubmitDidParams did) -> do
-    let code :: String =  "1234" -- | TODO: generate random code and send to DID
+    let entropy :: String =  "1234" -- | TODO: generate random code and send to DID
     -- here we assume that contract state is not available from wallet.
     -- this can be incorrect for inbrowser wallets, so in real life, better not to choose 
     -- onchain Haskell.  In hosted node it works safely, but hosted mode is near useless in practice.
-    tell (CmdMapPut did code)
+    tell (Command (PutRandom did entropy))
     logInfo @String $ "Submit " <> show did <> " to the script"
 
 convertDidDatum :: String -> String -> DidDatum
@@ -141,6 +145,7 @@ convertDidDatum did code = (DidDatum (stringToBuiltinByteString did) (stringToBu
 claimDid :: AsContractError e => Promise State DidAddressSchema e ()
 claimDid = endpoint @"claimDid" @ClaimDidParams $ \(ClaimDidParams did code) -> do
     -- logInfo @Haskell.String "Waiting for script to have a UTxO of at least 1 lovelace"
+
     utxos <- fundsAtAddressGeq didAddressAddress (Ada.lovelaceValueOf 1)
 
     --
@@ -154,6 +159,8 @@ claimDid = endpoint @"claimDid" @ClaimDidParams $ \(ClaimDidParams did code) -> 
     let didDatum  = convertDidDatum did code
     let tx = Constraints.mustPayToTheScript didDatum minAmount
     void (submitTxConstraintsSpending didAddressInstance utxos tx)
+
+--TODO: add endpoint which should be called by service owner.
 
 didAddress :: AsContractError e => Contract State DidAddressSchema e ()
 didAddress = do

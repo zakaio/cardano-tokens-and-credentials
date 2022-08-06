@@ -25,17 +25,23 @@ module Plutus.Contracts.OffChain.DidAddress
     ( submitDid
     , claimDid
     , didAddress
+    -- TODO: finalizePublish
     , DidAddressSchema
     , SubmitDidParams
     , ClaimDidParams
+    , TCProxyGetSubmittedDidsParams
     ) where
 
 import           Control.Monad         (void)
---import qualified Data.ByteString.Char8 as C
+import qualified Data.Aeson
+import           Data.Aeson           
+import qualified Data.Aeson.Types
+import qualified Data.Dequeue          as Dequeue
+import           Data.Dequeue          (BankersDequeue, Dequeue)
+import qualified Data.Foldable         as Foldable
 import           Data.Map              (Map)
 import qualified Data.Map              as Map
 import           Data.Maybe            (catMaybes)
-import           System.Random         
 import           Plutus.V1.Ledger.Api  (Address, ScriptContext, Validator, Value, Datum(Datum))
 import qualified Ledger
 import qualified Ledger.Ada            as Ada
@@ -45,20 +51,19 @@ import           Playground.Contract
 import           Plutus.Contract
 import           PlutusTx.Builtins.Class (stringToBuiltinByteString)
 import qualified PlutusTx
---import           PlutusTx.Prelude      hiding (pure, (<$>))
---import qualified Prelude               as Haskell 
 import           Prelude             
 import qualified Plutus.Script.Utils.V1.Typed.Scripts as Scripts
 import           Plutus.Contracts.OnChain.DidAddress 
 import           Plutus.Contracts.OnChain.DidAddress (DidDatum (..))
---import qualified Network.Http.Client  as HttpClient
 
 
 type DidAddressSchema =
         Endpoint "submitDid" SubmitDidParams
         .\/ Endpoint "claimDid" ClaimDidParams
+        .\/ Endpoint "tcproxyGetSumbittedDids" TCProxyGetSubmittedDidsParams
 
--- | Parameters for the "submitDid" endpoint
+-- Endpoint params
+
 data SubmitDidParams = SubmitDidParams
     { 
       submittedDid :: String
@@ -66,13 +71,18 @@ data SubmitDidParams = SubmitDidParams
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
---  | Parameters for the "claimDid" endpoint
 data ClaimDidParams = ClaimDidParams
     { claimedDid :: String,
       claimCode :: String 
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
+data TCProxyGetSubmittedDidsParams = TCProxyGetSubmittedDidsParams 
+                                      { maxItems:: Int }
+                                      deriving stock (Eq, Show, Generic)
+                                      deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
 
 
 class StateCommand s c | s->c where
@@ -101,25 +111,57 @@ instance (StateCommand s c) => Semigroup (StateOrCommand s c) where
 instance (StateCommand s c) => Monoid (StateOrCommand s c) where
     mempty = SetState initState
 
-data MapCommand = PutRandom String String -- intercepted by state update effect and generate random value
+
+-- TODO: add TTL
+data OnlyState = OnlyState {
+    didCodeMap :: Map String String,
+    didWithoutCodes :: BankersDequeue String
+  }
+  deriving stock (Eq, Show, Generic)
+  deriving anyclass (FromJSON, ToJSON)
+
+
+instance (FromJSON t) => FromJSON(BankersDequeue t) where
+    parseJSON = fmap Dequeue.fromList . parseJSON
+    
+instance (ToJSON t) => ToJSON(BankersDequeue t) where
+    toJSON v = toJSON (Foldable.toList v)
+
+
+data OnlyCommand =    EnqueueMessage String 
                      |
-                      Put String String  -- add key and valut to map. internal, result of interception.
+                      DequeueMessages Int
+                     |
+                      Put String String  
                      |
                       Delete String
                     deriving stock (Eq, Show, Generic)
                     deriving anyclass (FromJSON, ToJSON)
 
-instance StateCommand (Map String String) MapCommand where
-       initState = Map.empty
+instance StateCommand OnlyState OnlyCommand where
+       initState = OnlyState Map.empty Dequeue.empty
        apply c s = case c of
-                     PutRandom did entropy -> Map.insert did entropy s -- will be never called when random effect is enabled.
-                     Put did code -> Map.insert did code s
-                     Delete did -> Map.delete did s
-       merge x y = Map.union x y
+                     EnqueueMessage did -> s{ didWithoutCodes = Dequeue.pushBack (didWithoutCodes s) did }
+                     DequeueMessages n -> s{ didWithoutCodes = popFrontN (didWithoutCodes s) n }
+                                            where 
+                                              popFrontN :: (BankersDequeue t) -> Int -> BankersDequeue t
+                                              popFrontN dq n = 
+                                                 if (n == 0) then dq
+                                                 else case Dequeue.popFront dq of
+                                                        Nothing -> dq
+                                                        Just (v, dq') -> popFrontN dq' (n-1)
+                     Put did code -> s{ didCodeMap = Map.insert did code (didCodeMap s) }
+                     Delete did -> s{ didCodeMap = Map.delete did (didCodeMap s) }
+       merge x y = OnlyState{    
+                      didCodeMap = Map.union (didCodeMap x) (didCodeMap y),
+                      didWithoutCodes = Dequeue.fromList (
+                                  (Foldable.toList (didWithoutCodes x)) ++
+                                  (Foldable.toList (didWithoutCodes y))
+                      )
+                   }
 
 
-
-type State = StateOrCommand (Map String String) MapCommand
+type State = StateOrCommand OnlyState OnlyCommand
                  
 
 -- | The "submitDid" contract endpoint. See note [Contract endpoints]
@@ -129,11 +171,7 @@ type State = StateOrCommand (Map String String) MapCommand
 -- | But we will leave imlementation here
 submitDid :: AsContractError e => Promise State DidAddressSchema e ()
 submitDid = endpoint @"submitDid" @SubmitDidParams $ \(SubmitDidParams did) -> do
-    let entropy :: String =  "1234" -- | TODO: generate random code and send to DID
-    -- here we assume that contract state is not available from wallet.
-    -- this can be incorrect for inbrowser wallets, so in real life, better not to choose 
-    -- onchain Haskell.  In hosted node it works safely, but hosted mode is near useless in practice.
-    tell (Command (PutRandom did entropy))
+    tell (Command (EnqueueMessage did))
     logInfo @String $ "Submit " <> show did <> " to the script"
 
 convertDidDatum :: String -> String -> DidDatum

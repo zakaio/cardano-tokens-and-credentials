@@ -13,11 +13,15 @@ module Main(main) where
 
 import qualified Plutus.PAB.Effects.Contract.Builtin as Builtin
 
+
 import           PabContracts                        (PabContracts)
 import           Plutus.PAB.Run                      (runWith)
 
 main :: IO ()
 main = do
-    runWith (Builtin.handleBuiltin @PabContracts)
+    runWith (handlers @PabContracts)
 
+-- here we can intercept handlers
+handlers :: Builtin.HasDefinitions a => Builtin.BuiltinHandler a
+handlers = Builtin.handleBuiltin
 

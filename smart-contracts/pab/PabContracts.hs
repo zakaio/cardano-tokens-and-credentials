@@ -19,10 +19,21 @@ import           Plutus.PAB.Effects.Contract.Builtin (SomeBuiltin (..))
 import qualified Plutus.PAB.Effects.Contract.Builtin as Builtin
 import           Plutus.Contracts.OffChain.DidAddress         as DidAddress
 import           Prettyprinter                       (Pretty (..), viaShow)
+import qualified Plutus.Contracts.OffChain.DidAddress as DidAddress
+import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromString) 
 
+
+
+contractParams :: DidAddress.ContractParams 
+contractParams = ContractParams {
+        owner = pkhFromString "TODO",
+        publishPrice = 2000 lovelice,
+        backPrice = 2000 lovelice,
+        daTokenAmount = 9999
+}
 
 data PabContracts =
-    DidAddressContract
+      DidAddressContract 
     deriving (Eq, Ord, Show, Generic)
     deriving anyclass (OpenApi.ToSchema, ToJSON, FromJSON)
 
@@ -30,7 +41,7 @@ instance Pretty PabContracts where
     pretty = viaShow
 
 instance Builtin.HasDefinitions PabContracts where
-    getDefinitions = [DidAddressContract]
+    getDefinitions = [DidAddressUserContract,]
     getSchema =  \case
         DidAddressContract -> Builtin.endpointsToSchemas @DidAddress.DidAddressSchema
     getContract = \case

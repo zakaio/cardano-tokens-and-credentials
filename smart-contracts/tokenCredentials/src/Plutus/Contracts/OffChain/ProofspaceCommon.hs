@@ -26,20 +26,24 @@ module Plutus.Contracts.OffChain.ProofspaceCommon(
     pkhFromString
 ) where
 
+
 import           Prelude
+import           GHC.Generics
 import           Control.Lens
+import           Data.Aeson           (FromJSON (..), ToJSON (..))
 import           Data.Either
 import           Data.Text
 import qualified Data.ByteString.Char8 as BS
 import           Plutus.Contract
-import           Ledger (PubKeyHash(..), pubKeyHash) 
-import           Ledger.Bytes   (LedgerBytes(LedgerBytes), fromHex)
+import           Ledger               (PubKeyHash(..), pubKeyHash) 
+import           Ledger.Bytes         (LedgerBytes(LedgerBytes), fromHex)
 
 
 data GError =   GTextError Text
                     |
                 GContractError ContractError
-                 deriving Show
+                deriving stock (Show, Eq, Generic)
+                deriving anyclass (ToJSON, FromJSON)
 
 makeClassyPrisms ''GError
 

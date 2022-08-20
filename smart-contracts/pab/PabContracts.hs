@@ -9,42 +9,43 @@
 {-# LANGUAGE TypeFamilies       #-}
 {-# LANGUAGE TypeOperators      #-}
 
-module PabContracts(PabContracts) where
+-- for Given ContractParams => Builtin.HasDefinitions PabContracts
+{-# LANGUAGE UndecidableInstances     #-}
+
+
+module PabContracts(PabContracts (..)
+                    ) where
 
 import           Data.Aeson                          (FromJSON (..), ToJSON (..))
 import qualified Data.OpenApi                        as OpenApi
+import           Data.Reflection                     (Given (..), give)
 import           GHC.Generics                        (Generic)
+import           Plutus.V1.Ledger.Api                (Value, adaSymbol, adaToken)
+import qualified Plutus.V1.Ledger.Value              as Value
 import           Plutus.Contract                     (ContractError)
 import           Plutus.PAB.Effects.Contract.Builtin (SomeBuiltin (..))
 import qualified Plutus.PAB.Effects.Contract.Builtin as Builtin
 import           Plutus.Contracts.OffChain.DidAddress         as DidAddress
 import           Prettyprinter                       (Pretty (..), viaShow)
-import qualified Plutus.Contracts.OffChain.DidAddress as DidAddress
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromString) 
 
 
-
-contractParams :: DidAddress.ContractParams 
-contractParams = ContractParams {
-        owner = pkhFromString "TODO",
-        publishPrice = 2000 lovelice,
-        backPrice = 2000 lovelice,
-        daTokenAmount = 9999
-}
-
-data PabContracts =
-      DidAddressContract 
-    deriving (Eq, Ord, Show, Generic)
+data PabContracts = 
+      DidAddressUserPabContract 
+      |
+      DidAddressOwnerPabContract 
+    deriving (Eq,Ord,  Show, Generic)
     deriving anyclass (OpenApi.ToSchema, ToJSON, FromJSON)
 
-instance Pretty PabContracts where
+instance Pretty PabContracts  where
     pretty = viaShow
 
-instance Builtin.HasDefinitions PabContracts where
-    getDefinitions = [DidAddressUserContract,]
-    getSchema =  \case
-        DidAddressContract -> Builtin.endpointsToSchemas @DidAddress.DidAddressSchema
-    getContract = \case
-        DidAddressContract -> SomeBuiltin (DidAddress.didAddress @ContractError)
 
+instance Given ContractParams => Builtin.HasDefinitions PabContracts where
+      getDefinitions = [DidAddressUserPabContract, DidAddressOwnerPabContract]
+      getSchema = \case
+          DidAddressUserPabContract -> Builtin.endpointsToSchemas @DidAddress.DidAddressUserEndpoints
+          DidAddressOwnerPabContract -> Builtin.endpointsToSchemas @DidAddress.DidAddressOwnerEndpoints
+      getContract = \case
+          DidAddressUserPabContract -> SomeBuiltin (DidAddress.didAddressUserContract given)
+          DidAddressOwnerPabContract  -> SomeBuiltin (DidAddress.didAddressOwnerContract given)
 

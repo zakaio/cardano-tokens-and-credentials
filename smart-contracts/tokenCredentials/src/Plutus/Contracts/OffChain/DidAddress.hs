@@ -29,6 +29,10 @@ module Plutus.Contracts.OffChain.DidAddress
     , mintDid
     -- TODO: finalizePublish
     , DidAddressSchema (..)
+    , DidAddressOwnerEndpoints (..)
+    , DidAddressUserEndpoints (..)
+    , didAddressUserContract 
+    , didAddressOwnerContract
     , SubmitDidParams (..)
     , ClaimDidParams (..)
     -- Patams
@@ -91,6 +95,8 @@ data ContractParams = ContractParams {
         backPrice :: Value,
         daTokenAmount :: Integer
      }
+     deriving stock (Eq, Show, Generic)
+     deriving anyclass (FromJSON, ToJSON)
 
 type DidAddressUserEndpoints =
          Endpoint "submitDid" SubmitDidParams

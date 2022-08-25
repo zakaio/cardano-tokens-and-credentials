@@ -34,8 +34,8 @@
 ---       maybe prepare version without datum for this)
 --
 module Plutus.Contracts.OnChain.LockValue(
-           LockValueParams,
-           LockValueDatum,
+           LockValueParams (..),
+           LockValueDatum (..),
            lockValueValidator,
            lockValueAddress,
            validateLockValueInstance

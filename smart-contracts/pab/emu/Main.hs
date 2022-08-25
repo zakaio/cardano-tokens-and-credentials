@@ -44,7 +44,7 @@ import           Schema                              (FormSchema)
 import Plutus.PAB.Effects.Contract                   (ContractEffect (..))
 
 -- local
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromString) 
+import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
 import           Plutus.Contracts.OffChain.DidAddress
 --import qualified PabContracts                        as PabContracts
 import           PabContracts                        (PabContracts (..))
@@ -55,7 +55,7 @@ main :: IO ()
 main = void $ do
          -- TODO: implement read-file
          _ <- print("main")
-         let ownerPkh = case pkhFromString "TODO" of
+         let ownerPkh = case pkhFromHexString "TODO" of
                            Left(msg) -> error (unpack msg)
                            Right(pkh) -> pkh
          let cfg = ContractParams {
@@ -77,6 +77,8 @@ simulation =
         liftIO $ writeFile "scripts/wallet" (show $ Wallet.getWalletId wallet)
 
         shutdown <- PAB.Server.startServerDebug
+
+        
 
         -- Example of spinning up a game instance on startup
         -- void $ Simulator.activateContract (Wallet 1) GameContract

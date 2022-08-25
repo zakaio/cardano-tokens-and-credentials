@@ -85,7 +85,7 @@ import           Plutus.Contracts.OnChain.DidAddress (SubmitDidDatum (..),
                                                       claimDidInstance,
                                                       claimDidValidator
                                                      )
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromString) 
+import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
 
 
 
@@ -159,7 +159,7 @@ convertSubmitDidDatum did pkh = (SubmitDidDatum (stringToBuiltinByteString did) 
 mintDid :: ContractParams -> Promise () DidAddressOwnerEndpoints GError ()
 mintDid contractParams = endpoint @"mintDid" @MintDidParams $ \(MintDidParams did spkh code) -> do
     let bDid = (stringToBuiltinByteString did)
-    pkh <- case (pkhFromString spkh) of
+    pkh <- case (pkhFromHexString spkh) of
                  Left(message) -> throwError (GTextError message)
                  Right(value) -> return value
     let submitDidDatumRecord = SubmitDidDatum {

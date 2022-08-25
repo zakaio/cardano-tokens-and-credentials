@@ -23,7 +23,8 @@
 
 module Plutus.Contracts.OffChain.ProofspaceCommon(
     GError (..),
-    pkhFromString
+    pkhFromHexString,
+    txIdFromHexString
 ) where
 
 
@@ -35,8 +36,9 @@ import           Data.Either
 import           Data.Text
 import qualified Data.ByteString.Char8 as BS
 import           Plutus.Contract
-import           Ledger               (PubKeyHash(..), pubKeyHash) 
+import           Ledger               (PubKeyHash(..), pubKeyHash, TxId (..)) 
 import           Ledger.Bytes         (LedgerBytes(LedgerBytes), fromHex)
+import           Plutus.V1.Ledger.Api (BuiltinByteString (..))
 
 
 data GError =   GTextError Text
@@ -51,8 +53,21 @@ instance AsContractError GError where
     _ContractError = _GContractError
 
 
-pkhFromString :: String -> Either Text PubKeyHash   
-pkhFromString s =         
+
+pkhFromHexString :: String -> Either Text PubKeyHash   
+pkhFromHexString s =     
+    fmap PubKeyHash (byteStringFromHexString s)    
+   
+
+txIdFromHexString :: String -> Either Text TxId   
+txIdFromHexString s = 
+    fmap TxId (byteStringFromHexString s)      
+   
+
+byteStringFromHexString :: String -> Either Text BuiltinByteString
+byteStringFromHexString s =         
     case fromHex (BS.pack s) of 
-        Right (LedgerBytes bytes) -> Right $ PubKeyHash bytes 
+        Right (LedgerBytes bytes) -> Right $ bytes 
         Left msg -> Left $ pack ("Could not convert from hex to bytes: " <> msg)
+
+

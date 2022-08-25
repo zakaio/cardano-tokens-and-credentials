@@ -27,7 +27,7 @@ import           Prettyprinter                       (Pretty (..), viaShow)
 
 import qualified Plutus.Contracts.OffChain.DidAddress as DidAddress
 import           Plutus.Contracts.OffChain.DidAddress  (ContractParams (..))
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromString) 
+import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
 
 
 import           qualified PabContracts              as PabContracts
@@ -36,7 +36,7 @@ import           PabContracts                        (PabContracts (..))
 
 contractParams :: String -> ContractParams 
 contractParams pkhs = ContractParams {
-       owner = case pkhFromString pkhs of 
+       owner = case pkhFromHexString pkhs of 
                   Left(msg) -> error(unpack msg)
                   Right(pkh) -> pkh,
        publishPrice = Value.singleton adaSymbol  adaToken 2000000,

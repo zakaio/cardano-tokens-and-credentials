@@ -25,14 +25,18 @@ import qualified Plutus.V1.Ledger.Value              as Value
 import           Plutus.Contract                     (ContractError)
 import           Plutus.PAB.Effects.Contract.Builtin (SomeBuiltin (..))
 import qualified Plutus.PAB.Effects.Contract.Builtin as Builtin
-import           Plutus.Contracts.OffChain.DidAddress         as DidAddress
 import           Prettyprinter                       (Pretty (..), viaShow)
+import           Plutus.Contracts.OffChain.DidAddress       as DidAddress
+import           Plutus.Contracts.OffChain.LockValue        as LockValue
+
 
 
 data PabContracts = 
       DidAddressUserPabContract 
       |
       DidAddressOwnerPabContract 
+      |
+      LockValueContract
     deriving (Eq,Ord,  Show, Generic)
     deriving anyclass (OpenApi.ToSchema, ToJSON, FromJSON)
 
@@ -41,11 +45,14 @@ instance Pretty PabContracts  where
 
 
 instance Given ContractParams => Builtin.HasDefinitions PabContracts where
-      getDefinitions = [DidAddressUserPabContract, DidAddressOwnerPabContract]
+      getDefinitions = [DidAddressUserPabContract, DidAddressOwnerPabContract, LockValueContract]
       getSchema = \case
-          DidAddressUserPabContract -> Builtin.endpointsToSchemas @DidAddress.DidAddressUserEndpoints
+          DidAddressUserPabContract  -> Builtin.endpointsToSchemas @DidAddress.DidAddressUserEndpoints
           DidAddressOwnerPabContract -> Builtin.endpointsToSchemas @DidAddress.DidAddressOwnerEndpoints
+          LockValueContract          -> Builtin.endpointsToSchemas @LockValue.LockValueSchema
       getContract = \case
-          DidAddressUserPabContract -> SomeBuiltin (DidAddress.didAddressUserContract given)
+          DidAddressUserPabContract   -> SomeBuiltin (DidAddress.didAddressUserContract given)
           DidAddressOwnerPabContract  -> SomeBuiltin (DidAddress.didAddressOwnerContract given)
+          LockValueContract           -> SomeBuiltin (LockValue.lockValueContract)
+
 

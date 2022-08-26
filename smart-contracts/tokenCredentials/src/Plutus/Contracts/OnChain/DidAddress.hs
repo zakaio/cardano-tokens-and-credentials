@@ -8,6 +8,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE NoImplicitPrelude          #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE PartialTypeSignatures      #-}
 {-# LANGUAGE RecordWildCards            #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
@@ -131,7 +132,7 @@ submitDidAddress pkh = Ledger.scriptAddress (submitDidValidator pkh)
 didAddressMintingPolicy :: PubKeyHash -> PubKeyHash -> BuiltinByteString -> BuiltinData -> BuiltinData -> ()
 didAddressMintingPolicy  contractOwner  didOwner did  _  ctxData =
             if (not (Ledger.txSignedBy txInfo contractOwner)) then
-              error()
+              traceError  "invalid signature"
             else 
               (case find (\x -> (snd x) == didOwnerDid) (Ledger.txInfoData txInfo) of
                  Nothing -> error () 

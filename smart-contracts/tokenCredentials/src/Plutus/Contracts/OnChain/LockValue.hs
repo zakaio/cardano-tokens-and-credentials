@@ -79,6 +79,7 @@ instance Scripts.ValidatorTypes LockValue where
     type instance DatumType LockValue = LockValueDatum
 
 -- use untyped interface for V2 because typed yet not available.
+{-# INLINABLE validateLockValueUntyped #-}
 validateLockValueUntyped :: LockValueParams -> BuiltinData -> BuiltinData -> BuiltinData -> ()
 validateLockValueUntyped params datum redeemer context = 
      if (condition) then
@@ -94,6 +95,7 @@ validateLockValueUntyped params datum redeemer context =
 
 -- this is the minimal lock script.
 -- the first minimal is always success, because code-string should be send with datum
+{-# INLINABLE validateLockValueTyped #-}
 validateLockValueTyped :: LockValueParams -> LockValueDatum -> LockValueDatum -> ScriptContext -> Bool
 validateLockValueTyped params datum redeemer ctx = 
      if (Interval.after (lvpExpireTime params) (Ledger.txInfoValidRange txInfo)) then

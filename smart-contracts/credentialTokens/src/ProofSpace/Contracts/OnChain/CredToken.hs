@@ -155,13 +155,12 @@ credTokenNTTMintingPolicy params _ ctxData =
       where
         ctx = PlutusTx.unsafeFromBuiltinData ctxData
         txInfo = scriptContextTxInfo ctx
-        --inputs = txInfoInputs txInfo
         outputs = txInfoOutputs txInfo
         mintedOutputs = filter (\x -> elem (ownCurrencySymbol ctx) 
                                            (Value.symbols (txOutValue x)) ) outputs
         authority = ctpAuthority params
         credRequest = ctpCredentialRequest params
-        credRequestTypedDatum = CredentialRequestDatum credRequest CredTokenNFT
+        credRequestTypedDatum = CredentialRequestDatum credRequest CredTokenNTT
         credRequestDatum = Datum $ PlutusTx.toBuiltinData credRequestTypedDatum
         tokenName = case Map.lookup (ownCurrencySymbol ctx) (Value.getValue (txInfoMint txInfo)) of
                       Nothing -> traceError("ownCurrencySymbol is not found")
@@ -171,6 +170,31 @@ credTokenNTTMintingPolicy params _ ctxData =
                             (x:y:xs) -> traceError("token name for minting should be one")
 
 
+checkNTT :: CurrencySymbol -> ScriptContext -> Bool
+checkNTT  credReqSym ctx =
+     (not (null myOutputs))
+     &&
+     (all (\x-> 
+          case Ledger.toPubKeyHash (txOutAddress x) of
+            Nothing -> False
+            Just pkh ->
+                let xValueMap = Value.getValue (txOutValue x)
+                in
+                    case Map.lookup credReqSym xValueMap of
+                        Nothing -> False
+                        Just tokens -> 
+                            all (\tkn ->
+                                 (Crypto.getPubKeyHash pkh) == (Value.unTokenName tkn) )
+                              (Map.keys tokens) 
+          ) 
+        myOutputs) 
+    where
+        txInfo = scriptContextTxInfo ctx
+        outputs = txInfoOutputs txInfo
+        myOutputs = filter (\x -> elem credReqSym 
+                                        (Value.symbols (txOutValue x)) ) outputs
+        
+
 
 {-# INLINABLE credTokenNFTMintingPolicyScript #-}
 credTokenNFTMintingPolicyScript ::  CredTokenParams -> Scripts.MintingPolicy
@@ -179,6 +203,8 @@ credTokenNFTMintingPolicyScript params =
              ($$(PlutusTx.compile [|| credTokenNFTMintingPolicy ||])
                    `PlutusTx.applyCode` PlutusTx.liftCode params
              )
+
+
 
 
 

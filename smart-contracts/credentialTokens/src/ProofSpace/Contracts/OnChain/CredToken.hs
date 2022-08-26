@@ -23,7 +23,8 @@
 module ProofSpace.Contracts.OnChain.CredToken(
     CredTokenParams (..),
     credTokenNFTMintingPolicy,
-    --credTokenNTTMintingPolicy
+    credTokenNFTMintingPolicyScript,
+    credTokenNTTMintingPolicy
 ) where
 
 
@@ -36,12 +37,14 @@ import           Plutus.V1.Ledger.Api  (Address,
                                         POSIXTime,
                                         ScriptContext, 
                                         Validator,
-                                        mkValidatorScript)
+                                        mkValidatorScript,
+                                        mkMintingPolicyScript)
 import qualified Plutus.V1.Ledger.Interval            as Interval
 import qualified Plutus.V1.Ledger.TxId                as TxId
 import qualified Plutus.V1.Ledger.Value               as Value
+import qualified Plutus.V1.Ledger.Crypto              as Crypto
 import qualified Plutus.Script.Utils.V1.Typed.Scripts as Scripts
-import           PlutusTx.AssocMap     as Map
+import qualified PlutusTx.AssocMap                    as Map
 
 
 data CredTokenType = CredTokenNFT -- one-time token
@@ -79,6 +82,9 @@ PlutusTx.makeLift           ''CredentialRequestDatum
 PlutusTx.unstableMakeIsData ''CredentialRequestDatum
 
 
+-- here we have unique token name, any amount
+-- useful in situation, where we have quasi-unique credential request
+-- and want to have an answer as nft token
 {-# INLINABLE credTokenNFTMintingPolicy #-}
 credTokenNFTMintingPolicy :: CredTokenParams -> BuiltinData -> BuiltinData -> ()
 credTokenNFTMintingPolicy params _ ctxData =
@@ -115,8 +121,65 @@ credTokenNFTMintingPolicy params _ ctxData =
                             (x:y:xs) -> traceError("token name for minting should be one")
 
 
-        
-        
+-- NTT - No transferrable token
+-- here we have token name which should be the same as address
+-- this address can be minted only if transaction send to him.
+-- then any smart-comtract can check the validity of token
+-- by comaring token name and address of input from which token
+-- was send to contract.
+-- [we will mint this token as additional step after claimCode]
+{-# INLINABLE credTokenNTTMintingPolicy #-}
+credTokenNTTMintingPolicy :: CredTokenParams -> BuiltinData -> BuiltinData -> ()
+credTokenNTTMintingPolicy params _ ctxData =
+    if (not (txSignedBy txInfo authority)) then
+        traceError "Invalid transaction signature"
+    else
+        case findDatumHash credRequestDatum txInfo of
+            Nothing -> traceError("credential request datum is not found")
+            Just dh ->
+                case mintedOutputs of
+                    [] -> traceError "no minted outputs"
+                    [x] ->
+                        case Ledger.toPubKeyHash (txOutAddress x) of 
+                            Nothing -> traceError "NTT Token can't be send to script"
+                            Just pkh ->
+                                let 
+                                    tkBytes = Value.unTokenName tokenName
+                                    pkhBytes = Crypto.getPubKeyHash pkh
+                                in
+                                    if (tkBytes /= pkhBytes) then 
+                                        traceError("token name for other token")
+                                    else    
+                                        ()
+                    (x:xs) -> traceError "too many input outputs"    
+      where
+        ctx = PlutusTx.unsafeFromBuiltinData ctxData
+        txInfo = scriptContextTxInfo ctx
+        --inputs = txInfoInputs txInfo
+        outputs = txInfoOutputs txInfo
+        mintedOutputs = filter (\x -> elem (ownCurrencySymbol ctx) 
+                                           (Value.symbols (txOutValue x)) ) outputs
+        authority = ctpAuthority params
+        credRequest = ctpCredentialRequest params
+        credRequestTypedDatum = CredentialRequestDatum credRequest CredTokenNFT
+        credRequestDatum = Datum $ PlutusTx.toBuiltinData credRequestTypedDatum
+        tokenName = case Map.lookup (ownCurrencySymbol ctx) (Value.getValue (txInfoMint txInfo)) of
+                      Nothing -> traceError("ownCurrencySymbol is not found")
+                      Just tokenNames ->
+                        case Map.toList tokenNames of
+                            [x] -> (fst x)
+                            (x:y:xs) -> traceError("token name for minting should be one")
+
+
+
+{-# INLINABLE credTokenNFTMintingPolicyScript #-}
+credTokenNFTMintingPolicyScript ::  CredTokenParams -> Scripts.MintingPolicy
+credTokenNFTMintingPolicyScript params =
+           mkMintingPolicyScript
+             ($$(PlutusTx.compile [|| credTokenNFTMintingPolicy ||])
+                   `PlutusTx.applyCode` PlutusTx.liftCode params
+             )
+
 
 
 

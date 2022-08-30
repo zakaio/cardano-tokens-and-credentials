@@ -60,7 +60,7 @@ sequenceDiagram
 actor Customer
 actor OnchainVerifier
 
-Customer ->> Blockchain: (1) submitCredTokenRequestForDid
+Customer ->> Blockchain: (1) submitCredTokenCodeRequestForDid
 TCProxy ->> Blockchain: (2) mintCredToken 
 TCProxy ->> Customer: (3)  send code
 Customer ->> Blockchain: (4)  claimCredToken

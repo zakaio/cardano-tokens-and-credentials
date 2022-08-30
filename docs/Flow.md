@@ -58,7 +58,7 @@ end
 ```mermaid
 sequenceDiagram
 actor Customer
-actor OnchainVerifier
+actor OnChainVerifier
 
 Customer ->> Blockchain: (1) submitCredTokenCodeRequestForDid
 TCProxy ->> Blockchain: (2) mintCredToken 

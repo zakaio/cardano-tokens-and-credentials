@@ -61,16 +61,43 @@ actor Customer
 actor OnchainVerifier
 
 Customer ->> Blockchain: (1) submitCredTokenRequestForDid
-TCProxy ->> Blockchain: (2) mintCredentialToken 
+TCProxy ->> Blockchain: (2) mintCredToken 
 TCProxy ->> Customer: (3)  send code
-Customer ->> Blockchain: (4)  claimCredentialToken
+Customer ->> Blockchain: (4)  claimCredToken
 
 OnChainVerifier ->> TCProxy: (5)  getCredRequestCurrencySymbol
 ```
 
-
-
 ## Issue NTT by code
+
+NTT (Not transferrable token) can be minted only for given address
+ so we should have other schema for minting one.
+
+```mermaid
+sequenceDiagram
+actor Customer
+
+Customer ->> Blockchain: (1) submitNTTCodeRequestForDid
+TCProxy ->> Customer: (3)  send code
+Customer ->> Blockchain: (4)  claimNTTCode
+TCProxy ->> Blockchain: (5) mintNTTCredToken
+
+```
+
+## Issue NTT by did-address
+
+```mermaid
+sequenceDiagram
+actor Customer
+
+Customer ->> Blockchain: (1) submitNTTRequestForDid, DidAddressToken
+TCProxy ->> Blockchain: (5) mintNTTCredToken
+
+```
+
+
+
+
 
 
 

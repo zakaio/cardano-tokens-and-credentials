@@ -40,13 +40,37 @@ TCProxy ->> "ProofSpace Dashboard": (1.2) issue credential with txId and code
 "ProofSpce Dashboard" ->> "Customer ProofSpace App": (2.2) issue credential with txId and code
 alt
   "Customer ProofSpace App" ->> "ProofSpace Dashboard":  send cred to service
-  "ProofSpace Dasboard" ->> Service:  credential
-  Service ->> Blockchain: (2) claimLockedValue  (via TCProxy ?)
+  "ProofSpace Dasboard" ->> Service: received credential
+  Service ->> Blockchain: (2) claimLockedValue
 else
   "Customer ProofSpace App" ->> "Customer Browser": (receive credential to code)
   "Customer Browser" ->> Blockchain: (2) claimLockedValue
+end
 ```
 
 
 
-# Token-Based credential.
+#  Credential-based token
+
+## Issue NFT or DAT by code
+
+
+```mermaid
+sequenceDiagram
+actor Customer
+actor OnchainVerifier
+
+Customer ->> Blockchain: (1) submitCredTokenRequestForDid
+TCProxy ->> Blockchain: (2) mintCredentialToken 
+TCProxy ->> Customer: (3)  send code
+Customer ->> Blockchain: (4)  claimCredentialToken
+
+OnChainVerifier ->> TCProxy: (5)  getCredRequestCurrencySymbol
+```
+
+
+
+## Issue NTT by code
+
+
+

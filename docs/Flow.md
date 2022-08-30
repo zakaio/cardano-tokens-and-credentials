@@ -33,7 +33,6 @@ actor "Customer ProofSpace App"
 actor TCProxy
 actor "ProofSpace Dashboard" 
 actor Service
-actor Blockchain
 "Customer Browser" ->> TCProxy:  requestLockValueAddress
 TCProxy ->> "Customer Browser": lockValueAddress
 "Customer Browser" ->> Blockchain: (1.1) lockValueToCred

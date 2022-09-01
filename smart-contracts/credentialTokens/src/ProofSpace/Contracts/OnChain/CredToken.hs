@@ -28,7 +28,9 @@ module ProofSpace.Contracts.OnChain.CredToken(
     credTokenNTTMintingPolicyScript,
     credTokenDATMintingPolicy,
     credTokenDATMintingPolicyScript,
-    validateNTT
+    validateNTT,
+    claimCredTokenTypedValidate,
+    claimCredTokenValidator
 ) where
 
 
@@ -54,6 +56,16 @@ data CredTokenType = CredTokenNFT -- one-time token
                      CredTokenDAT -- data token (data encoded in token name)
                     |
                      CredTokenPTR -- Reference to transaction output is in token name (Vasil)
+                                    
+
+-- bug in Plutus:  deriving stock(Eq) cause compile error                
+instance Eq CredTokenType where
+   CredTokenNFT == CredTokenNFT = True
+   CredTokenNTT == CredTokenNTT = True
+   CredTokenDAT == CredTokenDAT = True
+   CredTokenPTR == CredTokenPTR = True
+   _            == _            = False
+
 
 
 PlutusTx.makeLift           ''CredTokenType
@@ -75,7 +87,8 @@ PlutusTx.makeLift ''CredTokenParams
 
 data CredentialRequestDatum = CredentialRequestDatum {
     crdCredentialRequest :: BuiltinByteString,
-    crdType              :: CredTokenType
+    crdType              :: CredTokenType,
+    crdCode              :: BuiltinByteString
 }
 
 PlutusTx.makeLift           ''CredentialRequestDatum
@@ -88,27 +101,36 @@ credTokenGenMintingPolicy params typeSpecificCheck _ ctxData =
     if (not (txSignedBy txInfo authority)) then
         traceError "Invalid transaction signature"
     else
-        case findDatumHash credRequestDatum txInfo of
+        case find (\x -> isCredRequestDatum (snd x)) (txInfoData txInfo) of
             Nothing -> traceError("credential request datum is not found")
-            Just dh ->
+            Just (dh, dt) ->
                 case find (\x -> (txOutDatumHash (txInInfoResolved x)) == Just dh) inputs of
                     Nothing -> traceError("input with datum hash is not found")
                     Just inInfo ->
                          typeSpecificCheck ctx inInfo
-      where
+    where
         ctx = PlutusTx.unsafeFromBuiltinData ctxData
         txInfo = scriptContextTxInfo ctx
         inputs = txInfoInputs txInfo
         authority = ctpAuthority params
         credRequest = ctpCredentialRequest params
-        credRequestTypedDatum = CredentialRequestDatum credRequest (ctpType params)
-        credRequestDatum = Datum $ PlutusTx.toBuiltinData credRequestTypedDatum
+        credType = ctpType params
+        --credRequestTypedDatum = CredentialRequestDatum credRequest (ctpType params)
+        --credRequestDatum = Datum $ PlutusTx.toBuiltinData credRequestTypedDatum
         tokenName = case Map.lookup (ownCurrencySymbol ctx) (Value.getValue (txInfoMint txInfo)) of
                       Nothing -> traceError("ownCurrencySymbol is not found")
                       Just tokenNames ->
                         case Map.toList tokenNames of
                             [x] -> (fst x)
                             (x:y:xs) -> traceError("token name for minting should be one")
+        isCredRequestDatum::Datum -> Bool
+        isCredRequestDatum datum =
+            case PlutusTx.fromBuiltinData @CredentialRequestDatum (getDatum datum) of
+                Just crd ->
+                    (crdCredentialRequest crd) == credRequest
+                    &&
+                    (crdType crd) == credType
+                Nothing -> False
 
 
 
@@ -266,5 +288,24 @@ credTokenDATMintingPolicyScript params =
 
 
 
+claimCredTokenTypedValidate :: CredTokenParams -> CredentialRequestDatum -> () -> ScriptContext -> Bool
+claimCredTokenTypedValidate params datum _ ctx =
+    (ctpCredentialRequest params) == (crdCredentialRequest datum)
 
+data ClaimCredToken
+instance Scripts.ValidatorTypes ClaimCredToken where
+    type instance RedeemerType ClaimCredToken = ()
+    type instance DatumType ClaimCredToken = CredentialRequestDatum
+
+claimCredTokenInstance :: CredTokenParams -> Scripts.TypedValidator ClaimCredToken
+claimCredTokenInstance params = Scripts.mkTypedValidator @ClaimCredToken
+    ($$(PlutusTx.compile [|| claimCredTokenTypedValidate ||])
+            `PlutusTx.applyCode` PlutusTx.liftCode params
+    )
+    $$(PlutusTx.compile [|| wrap ||]) 
+     where
+        wrap = Scripts.mkUntypedValidator @CredentialRequestDatum @()
+
+claimCredTokenValidator :: CredTokenParams -> Validator 
+claimCredTokenValidator params = Scripts.validatorScript (claimCredTokenInstance params)
 

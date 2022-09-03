@@ -66,7 +66,7 @@ data LockValueToCredParams = LockValueToCredParams {
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
--- script address as hex string
+-- script acurrentOutAddressddress as hex string
 data LockValueToCredResult = LockValueToCredResult {
       lvtcrExpireTimeMillis :: Integer,
       lvtcrTxIdS :: String

@@ -21,7 +21,9 @@
 --
 -- 
 module ProofSpace.Contracts.OnChain.CredToken(
+    CredTokenType (..),
     CredTokenParams (..),
+    CredentialMintClaimDatum (..),
     credTokenNFTMintingPolicy,
     credTokenNFTMintingPolicyScript,
     credTokenNTTMintingPolicy,
@@ -85,14 +87,15 @@ data CredTokenParams = CredTokenParams {
 PlutusTx.makeLift ''CredTokenParams
 
 
-data CredentialRequestDatum = CredentialRequestDatum {
-    crdCredentialRequest :: BuiltinByteString,
-    crdType              :: CredTokenType,
-    crdCode              :: BuiltinByteString
+
+data CredentialMintClaimDatum = CredentialMintClaimDatum {
+    cmcdCredentialRequest :: BuiltinByteString,
+    cmcdType              :: CredTokenType,
+    cmcdCode              :: BuiltinByteString
 }
 
-PlutusTx.makeLift           ''CredentialRequestDatum
-PlutusTx.unstableMakeIsData ''CredentialRequestDatum
+PlutusTx.makeLift           ''CredentialMintClaimDatum
+PlutusTx.unstableMakeIsData ''CredentialMintClaimDatum
 
 
 {-# INLINABLE credTokenGenMintingPolicy #-}
@@ -125,11 +128,11 @@ credTokenGenMintingPolicy params typeSpecificCheck _ ctxData =
                             (x:y:xs) -> traceError("token name for minting should be one")
         isCredRequestDatum::Datum -> Bool
         isCredRequestDatum datum =
-            case PlutusTx.fromBuiltinData @CredentialRequestDatum (getDatum datum) of
+            case PlutusTx.fromBuiltinData @CredentialMintClaimDatum (getDatum datum) of
                 Just crd ->
-                    (crdCredentialRequest crd) == credRequest
+                    (cmcdCredentialRequest crd) == credRequest
                     &&
-                    (crdType crd) == credType
+                    (cmcdType crd) == credType
                 Nothing -> False
 
 
@@ -288,14 +291,14 @@ credTokenDATMintingPolicyScript params =
 
 
 
-claimCredTokenTypedValidate :: CredTokenParams -> CredentialRequestDatum -> () -> ScriptContext -> Bool
+claimCredTokenTypedValidate :: CredTokenParams -> CredentialMintClaimDatum -> () -> ScriptContext -> Bool
 claimCredTokenTypedValidate params datum _ ctx =
-    (ctpCredentialRequest params) == (crdCredentialRequest datum)
+    (ctpCredentialRequest params) == (cmcdCredentialRequest datum)
 
 data ClaimCredToken
 instance Scripts.ValidatorTypes ClaimCredToken where
     type instance RedeemerType ClaimCredToken = ()
-    type instance DatumType ClaimCredToken = CredentialRequestDatum
+    type instance DatumType ClaimCredToken = CredentialMintClaimDatum
 
 claimCredTokenInstance :: CredTokenParams -> Scripts.TypedValidator ClaimCredToken
 claimCredTokenInstance params = Scripts.mkTypedValidator @ClaimCredToken
@@ -304,7 +307,7 @@ claimCredTokenInstance params = Scripts.mkTypedValidator @ClaimCredToken
     )
     $$(PlutusTx.compile [|| wrap ||]) 
      where
-        wrap = Scripts.mkUntypedValidator @CredentialRequestDatum @()
+        wrap = Scripts.mkUntypedValidator @CredentialMintClaimDatum @()
 
 claimCredTokenValidator :: CredTokenParams -> Validator 
 claimCredTokenValidator params = Scripts.validatorScript (claimCredTokenInstance params)

@@ -24,7 +24,8 @@
 module Plutus.Contracts.OffChain.ProofspaceCommon(
     GError (..),
     pkhFromHexString,
-    txIdFromHexString
+    txIdFromHexString,
+    findOutputToPubKeyHash
 ) where
 
 
@@ -33,10 +34,16 @@ import           GHC.Generics
 import           Control.Lens
 import           Data.Aeson           (FromJSON (..), ToJSON (..))
 import           Data.Either
-import           Data.Text
+import           Data.Text            (Text (..), pack)
 import qualified Data.ByteString.Char8 as BS
 import           Plutus.Contract
-import           Ledger               (PubKeyHash(..), pubKeyHash, TxId (..)) 
+import           Ledger               (PubKeyHash(..), pubKeyHash, 
+                                       TxId (..), 
+                                       txOutAddress,
+                                       TxOutRef (..), 
+                                       CardanoTx,
+                                       getCardanoTxOutRefs,
+                                       toPubKeyHash) 
 import           Ledger.Bytes         (LedgerBytes(LedgerBytes), fromHex)
 import           Plutus.V1.Ledger.Api (BuiltinByteString (..))
 
@@ -71,3 +78,18 @@ byteStringFromHexString s =
         Left msg -> Left $ pack ("Could not convert from hex to bytes: " <> msg)
 
 
+--
+-- fir online
+--
+findOutputToPubKeyHash :: PubKeyHash -> CardanoTx -> Maybe TxOutRef
+findOutputToPubKeyHash pkh tx =
+    let txOutputs = getCardanoTxOutRefs tx 
+        myTxOutputs = filter (\x ->
+                        case toPubKeyHash (txOutAddress (fst x)) of
+                            Nothing -> False
+                            Just txPkh -> pkh == txPkh
+                              )  txOutputs
+    in
+        case myTxOutputs  of
+            [] -> Nothing
+            (x:rest) -> Just (snd x)    

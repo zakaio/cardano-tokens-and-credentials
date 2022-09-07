@@ -24,8 +24,15 @@
 module Plutus.Contracts.OffChain.ProofspaceCommon(
     GError (..),
     pkhFromHexString,
+    pkhFromHexStringM,
     txIdFromHexString,
-    findOutputToPubKeyHash
+    txIdFromHexStringM,
+    findOutputToPubKeyHash,
+    findOutputToValidatorHash,
+    tokenNameFromHexString,
+    tokenNameFromHexStringM,
+    byteStringFromHexString,
+    byteStringFromHexStringM
 ) where
 
 
@@ -40,12 +47,15 @@ import           Plutus.Contract
 import           Ledger               (PubKeyHash(..), pubKeyHash, 
                                        TxId (..), 
                                        txOutAddress,
+                                       TxOut,
                                        TxOutRef (..), 
                                        CardanoTx,
                                        getCardanoTxOutRefs,
-                                       toPubKeyHash) 
+                                       toPubKeyHash,
+                                       toValidatorHash
+                                       ) 
 import           Ledger.Bytes         (LedgerBytes(LedgerBytes), fromHex)
-import           Plutus.V1.Ledger.Api (BuiltinByteString (..))
+import           Plutus.V1.Ledger.Api (BuiltinByteString (..), TokenName (..), ValidatorHash (..))
 
 
 data GError =   GTextError Text
@@ -64,12 +74,30 @@ instance AsContractError GError where
 pkhFromHexString :: String -> Either Text PubKeyHash   
 pkhFromHexString s =     
     fmap PubKeyHash (byteStringFromHexString s)    
-   
+      
+pkhFromHexStringM :: forall w s. String -> Contract w s GError PubKeyHash
+pkhFromHexStringM s = do
+    bytes <- byteStringFromHexStringM s
+    return (PubKeyHash bytes)      
 
 txIdFromHexString :: String -> Either Text TxId   
 txIdFromHexString s = 
     fmap TxId (byteStringFromHexString s)      
+
+txIdFromHexStringM :: forall w s. String -> Contract w s GError TxId
+txIdFromHexStringM s = do
+    bytes <- byteStringFromHexStringM s
+    return (TxId bytes)
    
+tokenNameFromHexString :: String -> Either Text TokenName
+tokenNameFromHexString s =
+    fmap TokenName (byteStringFromHexString s)
+
+tokenNameFromHexStringM :: forall w s. String -> Contract w s GError TokenName
+tokenNameFromHexStringM s = do
+     bytes <- byteStringFromHexStringM s
+     return (TokenName bytes)
+
 
 byteStringFromHexString :: String -> Either Text BuiltinByteString
 byteStringFromHexString s =         
@@ -77,19 +105,40 @@ byteStringFromHexString s =
         Right (LedgerBytes bytes) -> Right $ bytes 
         Left msg -> Left $ pack ("Could not convert from hex to bytes: " <> msg)
 
+byteStringFromHexStringM :: forall w s. String -> Contract w s GError BuiltinByteString
+byteStringFromHexStringM s =
+    case byteStringFromHexString s of
+        Left  msg -> throwError (GTextError msg)
+        Right bytes -> return bytes
+    
+
 
 --
 -- fir online
 --
-findOutputToPubKeyHash :: PubKeyHash -> CardanoTx -> Maybe TxOutRef
-findOutputToPubKeyHash pkh tx =
+findCardanoTxOut :: (TxOut -> Bool) -> CardanoTx -> Maybe TxOutRef
+findCardanoTxOut p tx =
     let txOutputs = getCardanoTxOutRefs tx 
-        myTxOutputs = filter (\x ->
-                        case toPubKeyHash (txOutAddress (fst x)) of
-                            Nothing -> False
-                            Just txPkh -> pkh == txPkh
-                              )  txOutputs
+        myTxOutputs = filter (\x -> p (fst x)) txOutputs
     in
         case myTxOutputs  of
             [] -> Nothing
             (x:rest) -> Just (snd x)    
+
+
+findOutputToPubKeyHash :: PubKeyHash -> CardanoTx -> Maybe TxOutRef
+findOutputToPubKeyHash pkh tx =
+    findCardanoTxOut (\txOut ->
+                        case toPubKeyHash (txOutAddress txOut) of
+                            Nothing -> False
+                            Just txPkh -> pkh == txPkh
+                       )  tx
+
+
+findOutputToValidatorHash :: ValidatorHash -> CardanoTx -> Maybe TxOutRef
+findOutputToValidatorHash vh tx =
+    findCardanoTxOut (\txOut ->
+                         case toValidatorHash (txOutAddress txOut) of
+                            Nothing -> False
+                            Just txVh -> vh == txVh
+                          ) tx

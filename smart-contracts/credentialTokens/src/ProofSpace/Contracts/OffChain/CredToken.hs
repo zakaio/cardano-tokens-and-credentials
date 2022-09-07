@@ -22,9 +22,9 @@
 
 module ProofSpace.Contracts.OffChain.CredToken
     ( 
-      submitCredTokenCodeDATRequest
-    --, mintCredToken,
-    --, claimCredToken,
+      submitCredTokenDATRequest
+      , mintDATCredToken
+      , claimDATCredToken
     --, getCredRequestCurrencySymbol
     --, submitNTTCodeRequestForDid
     --, claimNTTCode
@@ -42,26 +42,27 @@ import qualified Data.Aeson
 import           Data.Aeson            hiding (Value)
 import qualified Data.Aeson.Types
 import qualified Data.Foldable         as Foldable
-import           Data.Map              (Map, (!))
 import qualified Data.Map              as Map
 import qualified Data.List             as List
 import           Data.Maybe          
 import           Data.Text             (Text (..), pack)
-import           Plutus.V1.Ledger.Api  (Address, ScriptContext, Validator, Value, 
+import           Plutus.V1.Ledger.Api  (Address, ScriptContext, Validator, 
+                                        Value (..), 
                                         Datum(Datum), DatumHash(DatumHash), PubKeyHash,
                                         Redeemer (Redeemer),
                                         BuiltinByteString,
+                                        CurrencySymbol (..),
                                         getMintingPolicy
                                         )
 import qualified Plutus.V1.Ledger.Address as Address
 import qualified Plutus.V1.Ledger.Value as Value
 import qualified Ledger
 import           Ledger                (PaymentPubKeyHash (..), unPaymentPubKeyHash, 
-                                       CurrencySymbol,
+                                       CurrencySymbol (..),
                                        txOutRefId, txOutRefIdx)
 import qualified Ledger.Ada            as Ada
 import qualified Ledger.Constraints    as Constraints
-import           Ledger.Constraints.OffChain (ScriptLookups,mintingPolicy,otherScript)
+import           Ledger.Constraints.OffChain (ScriptLookups,mintingPolicy,otherScript,unspentOutputs)
 import           Ledger.Tx             (ChainIndexTxOut (..), ciTxOutDatum, ciTxOutValue)
 import           Playground.Contract
 import           Plutus.Contract
@@ -71,13 +72,19 @@ import           PlutusTx.Builtins.Class (stringToBuiltinByteString)
 import           PlutusTx.Builtins       (sha2_256)
 import           PlutusTx.Lattice        ( (/\) )
 import qualified PlutusTx.Numeric       as PlutusTxNumeric
+import qualified PlutusTx.AssocMap      as AssocMap 
 import           Prelude             
 import qualified Plutus.Script.Utils.V1.Scripts as UtilsScripts
 import qualified Plutus.Script.Utils.V1.Typed.Scripts as TScripts
 
 import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), 
                                                              pkhFromHexString,
-                                                             findOutputToPubKeyHash) 
+                                                             pkhFromHexStringM,
+                                                             txIdFromHexStringM,
+                                                             findOutputToPubKeyHash,
+                                                             findOutputToValidatorHash,
+                                                             tokenNameFromHexStringM,
+                                                             ) 
 import           ProofSpace.Contracts.OnChain.CredToken(
                                     CredTokenType (..),
                                     CredTokenParams (..),
@@ -88,7 +95,9 @@ import           ProofSpace.Contracts.OnChain.CredToken(
                                     credTokenDATMintingPolicyScript,
                                     credTokenNTTMintingPolicy,
                                     credTokenNTTMintingPolicyScript,
-                                    claimCredTokenValidator
+                                    claimCredTokenValidator,
+                                    claimCredTokenInstance,
+                                    ClaimCredToken (..)
                                              )
 
 
@@ -102,15 +111,6 @@ data ContractParams = ContractParams {
      deriving anyclass (FromJSON, ToJSON)
 
 
-type CredTokenUserEndpoints =
-         Endpoint "submitCredTokenDATRequest" SubmitCredTokenDATRequestParams
-     .\/ Endpoint "claimDATCredToken"  ClaimCredTokenDATParams
-
-
-type CredTokenServiceEndpoints =
-         Endpoint "mintDATCredToken"  MintCredTokenDATRequestParams
-
-
 data SubmitCredTokenDATRequestParams = SubmitCredTokenDATRequestParams {        
         sctdrpCredentialRequest:: !String,
         sctdrpTokenName        :: !String,
@@ -121,11 +121,14 @@ data SubmitCredTokenDATRequestParams = SubmitCredTokenDATRequestParams {
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
-data SumitCredTokenDATDatum = SubmitCredTokenDATDatum {
+data SubmitCredTokenDATDatum = SubmitCredTokenDATDatum {
     sctddCredentialRequest:: !BuiltinByteString,
     sctddTokenName        :: !TokenName,
     sctddDid              :: !BuiltinByteString
 }
+
+PlutusTx.makeLift           ''SubmitCredTokenDATDatum
+PlutusTx.unstableMakeIsData ''SubmitCredTokenDATDatum
 
 data SubmitCredTokenDATRequestResult = SubmitCredTokenDATRequestResult {        
         sctdrrTxId             :: !String,
@@ -141,26 +144,53 @@ data MintCredTokenDATRequestParams = MintCredTokenDATRequestParams {
         mctdrpDid              :: !String,
         mctdrpServicePkh       :: !String,
         mctdrpCode             :: !String,
-        mctdrpAmount           :: !Value,
-        mctdrpSubmitTxId       :: !String
-}
+        mctdrpMintAmount       :: !Integer,
+        mctdrpServicePrice     :: !Value,
+        mctdrpSubmitTxId       :: !String,
+        mctdrpSubmitTxIdx      :: !Integer
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
-type MintCredTokenDATRequestResult = ()
+
+data MintCredTokenDATRequestResult = MintCredTokenDATRequestResult {
+        mctdrrTxId :: !String,
+        mctdrrTxIdx :: !Integer
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
 
 data ClaimCredTokenDATParams = ClaimCredTokenDATParams {
         cctpCredentialRequest :: !String,
         cctpTokenName :: !String,
         cctpCode :: !String,
-        cctpTxId:: !String
+        cctpTxId:: !String,
+        cctpTxIdx:: !Integer
     }
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
 data MintCredTokenParams = MintCredTokenParams {
-    mctpTxId :: !String,
-    mctpTxInd :: !Integer,
-    mctpCredentialRequest :: !BuiltinByteString
-}
+        mctpTxId :: !String,
+        mctpTxInd :: !Integer,
+        mctpCredentialRequest :: !String
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
+
+
+type CredTokenUserEndpoints =
+         Endpoint "submitCredTokenDATRequest" SubmitCredTokenDATRequestParams
+     .\/ Endpoint "claimDATCredToken"  ClaimCredTokenDATParams
+
+
+type CredTokenServiceEndpoints =
+         Endpoint "mintDATCredToken"  MintCredTokenDATRequestParams
+
+
+
 
 -- |  
 submitCredTokenDATRequest :: Promise () CredTokenUserEndpoints GError SubmitCredTokenDATRequestResult
@@ -191,8 +221,8 @@ submitCredTokenDATRequest = endpoint @"submitCredTokenDATRequest" @SubmitCredTok
     
 
 
-mintDATCredToken :: AsContractError e => Promise () CredTokenServiceEndpoints e MintCredTokenDATRequestResult 
-mintDATCredToken =  endpoint @"mintDATCredToken" @MintCredTokenDATRequestParams $ \params -> do
+mintDATCredToken :: ContractParams -> Promise () CredTokenServiceEndpoints GError MintCredTokenDATRequestResult 
+mintDATCredToken contractParams =  endpoint @"mintDATCredToken" @MintCredTokenDATRequestParams $ \params -> do
     let binCredentialRequest = stringToBuiltinByteString (mctdrpCredentialRequest params)
     authority <- case pkhFromHexString (mctdrpServicePkh params) of
                         Left msg -> throwError (GTextError msg)
@@ -202,20 +232,71 @@ mintDATCredToken =  endpoint @"mintDATCredToken" @MintCredTokenDATRequestParams 
         ctpCredentialRequest = binCredentialRequest,
         ctpType = CredTokenDAT
     }
-    let datMintingPolicy = mintingPolicy (credTokenDATMintingPolicyScript onchainMintParams)
-    let datMintingPolicyLookup =
+    let datMintingPolicyHash = UtilsScripts.mintingPolicyHash (credTokenDATMintingPolicyScript onchainMintParams)
+    let datMintCurrencySymbol = Value.mpsSymbol datMintingPolicyHash
     let binCredentialRequest = stringToBuiltinByteString (mctdrpCredentialRequest params)
-    let tokenName = mctdrpTokenName params
-    let mintAmount = mctdrpAmount params
-    let mintConstraint = Constraints.mustMintCurrency datMintingPolicy tokenName
-    let price = (publishPrice params) <> (claimBackPrice params)
+    tokenName <- tokenNameFromHexStringM (mctdrpTokenName params)
+    let mintAmount = mctdrpMintAmount params
+    let mintConstraint = Constraints.mustMintCurrency datMintingPolicyHash tokenName mintAmount 
     let typedMintDatum = CredentialMintClaimDatum {
         cmcdCredentialRequest = binCredentialRequest,
         cmcdType = CredTokenDAT,
-        cmcdCode = mctdrpCode params
+        cmcdCode = stringToBuiltinByteString (mctdrpCode params) 
     }
+    let mintValue = Value (AssocMap.singleton datMintCurrencySymbol (AssocMap.singleton tokenName mintAmount))
+    let claimValue = mintValue <> (claimBackPrice contractParams)
     let mintDatum = Datum $ PlutusTx.toBuiltinData typedMintDatum
-    let payConstraint = Constraints.mustPayWithDatumToPubKey mintDatum price
-    let constraints = mintConstraint <> payConstraint
-    let script = ClaimCredTokenInstance
-    void (submitTxConstraints script constraints)
+    let claimValidatorHash = UtilsScripts.validatorHash (claimCredTokenValidator onchainMintParams)
+    let claimPrice = claimBackPrice contractParams
+    let claimPayConstraint = Constraints.mustPayToOtherScript claimValidatorHash mintDatum claimPrice
+    servicePubKey <- pkhFromHexStringM (mctdrpServicePkh params)
+    let servicePayConstraint = Constraints.mustPayToPubKey  (PaymentPubKeyHash servicePubKey) (mctdrpServicePrice params)
+    let ownerPayConstraint = Constraints.mustPayToPubKey (PaymentPubKeyHash (owner contractParams)) (publishPrice contractParams)
+    utxoTxId  <- txIdFromHexStringM (mctdrpSubmitTxId  params)
+    let utxo = TxOutRef {
+        txOutRefId = utxoTxId,
+        txOutRefIdx = mctdrpSubmitTxIdx params
+    }
+    let useConstraint = Constraints.mustSpendScriptOutput utxo emptyRedeemer
+    let constraints = mintConstraint <> claimPayConstraint <> servicePayConstraint <> ownerPayConstraint <> useConstraint
+    let script =claimCredTokenInstance onchainMintParams
+    tx <- (submitTxConstraints script constraints)
+    output <- case findOutputToValidatorHash claimValidatorHash tx of
+                 Just output -> return output
+                 Nothing -> throwError (GTextError "Can't find output to claim address in generated transaction")
+    return $ MintCredTokenDATRequestResult {
+        mctdrrTxId = show (txOutRefId output),
+        mctdrrTxIdx = txOutRefIdx output
+    }
+
+emptyRedeemer :: Redeemer
+emptyRedeemer = Redeemer (PlutusTx.toBuiltinData ())
+
+
+claimDATCredToken :: Promise () CredTokenUserEndpoints GError ()
+claimDATCredToken = endpoint @"claimDATCredToken" @ClaimCredTokenDATParams $ \params -> do
+    let binCredentialRequest = stringToBuiltinByteString (cctpCredentialRequest params)
+    let typedClaimDatum = CredentialMintClaimDatum {
+        cmcdCredentialRequest = binCredentialRequest,
+        cmcdType = CredTokenDAT,
+        cmcdCode = stringToBuiltinByteString (cctpCode params) 
+    }
+    let claimDatum = Datum (PlutusTx.toBuiltinData typedClaimDatum)
+    inTxId <- txIdFromHexStringM (cctpTxId params) 
+    let utxoRef = TxOutRef {
+        txOutRefId = inTxId,
+        txOutRefIdx = (cctpTxIdx params)
+    }
+    let useConstraint = Constraints.mustSpendScriptOutput utxoRef emptyRedeemer
+    ppkh <- ownPaymentPubKeyHash
+    mbInTxOut <- unspentTxOutFromRef utxoRef
+    inTxOut <- case mbInTxOut of
+                   Nothing -> throwError (GTextError  "Can't find txOut in chain index")
+                   Just txOut -> return txOut
+    let payConstraint = Constraints.mustPayWithDatumToPubKey ppkh claimDatum (_ciTxOutValue inTxOut)
+    -- Plutus specific --- we should have ScriptLookups filled to have transaction.
+    -- Actually it's strange -- why we can't get something from script-address without 
+    -- knowing scripts.
+    let lookups :: ScriptLookups ClaimCredToken  = unspentOutputs (Map.singleton utxoRef inTxOut)
+    tx <- submitTxConstraintsWith lookups payConstraint
+    return ()

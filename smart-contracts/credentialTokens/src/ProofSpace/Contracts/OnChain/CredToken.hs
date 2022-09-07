@@ -32,7 +32,9 @@ module ProofSpace.Contracts.OnChain.CredToken(
     credTokenDATMintingPolicyScript,
     validateNTT,
     claimCredTokenTypedValidate,
-    claimCredTokenValidator
+    claimCredTokenValidator,
+    claimCredTokenInstance,
+    ClaimCredToken (..),
 ) where
 
 

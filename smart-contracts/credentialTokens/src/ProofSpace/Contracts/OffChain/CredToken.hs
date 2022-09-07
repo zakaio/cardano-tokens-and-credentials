@@ -25,7 +25,7 @@ module ProofSpace.Contracts.OffChain.CredToken
       submitCredTokenDATRequest
       , mintDATCredToken
       , claimDATCredToken
-    --, getCredRequestCurrencySymbol
+      , getCredRequestCurrencySymbol
     --, submitNTTCodeRequestForDid
     --, claimNTTCode
     --, mintNTTCredToken
@@ -179,6 +179,13 @@ data MintCredTokenParams = MintCredTokenParams {
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
+data GetCredRequestCurrencySymbolParams = GetCredRequestCurrencySymbolParams {
+        gcrcspCredRequest   :: !String,
+        gcrcspAuthorityPkh  :: !String,
+        gcrcspCredType      :: !String
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
 
 type CredTokenUserEndpoints =
@@ -188,8 +195,7 @@ type CredTokenUserEndpoints =
 
 type CredTokenServiceEndpoints =
          Endpoint "mintDATCredToken"  MintCredTokenDATRequestParams
-
-
+     .\/ Endpoint "getCredRequestCurrencySymbol"   GetCredRequestCurrencySymbolParams
 
 
 -- |  
@@ -300,3 +306,34 @@ claimDATCredToken = endpoint @"claimDATCredToken" @ClaimCredTokenDATParams $ \pa
     let lookups :: ScriptLookups ClaimCredToken  = unspentOutputs (Map.singleton utxoRef inTxOut)
     tx <- submitTxConstraintsWith lookups payConstraint
     return ()
+
+
+computeCredRequestCurrencySymbol :: CredTokenParams -> CurrencySymbol
+computeCredRequestCurrencySymbol params =
+    let daMintingPolicyHash = UtilsScripts.mintingPolicyHash (credTokenDATMintingPolicyScript params)
+    in 
+        Value.mpsSymbol daMintingPolicyHash
+
+credTypeFromStringM :: forall w s. String -> Contract w s GError CredTokenType
+credTypeFromStringM s =
+    case s of
+        "DAT" -> return CredTokenDAT
+        "NFT" -> return CredTokenNFT
+        "NTT" -> return CredTokenNTT
+        _     -> throwError (GTextError "Invalid cred-token type")
+
+getCredRequestCurrencySymbol :: Promise () CredTokenServiceEndpoints GError String
+getCredRequestCurrencySymbol = endpoint @"getCredRequestCurrencySymbol" @GetCredRequestCurrencySymbolParams $ \params -> do
+    logInfo @String $ "request currency symbolf for cred-request "
+    let binCredRequest = stringToBuiltinByteString (gcrcspCredRequest params)
+    authority <- pkhFromHexStringM (gcrcspAuthorityPkh params)
+    credType <- credTypeFromStringM (gcrcspCredType params)
+    let credTokenParams = CredTokenParams {
+        ctpAuthority = authority,
+        ctpCredentialRequest = binCredRequest,
+        ctpType = credType
+    }
+    let currencySymbol = computeCredRequestCurrencySymbol credTokenParams
+    return (show currencySymbol)
+
+

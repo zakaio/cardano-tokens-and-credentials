@@ -28,6 +28,7 @@ module Plutus.Contracts.OffChain.ProofspaceCommon(
     txIdFromHexString,
     txIdFromHexStringM,
     findOutputToPubKeyHash,
+    findOutputToPubKeyHashM,
     findOutputToValidatorHash,
     tokenNameFromHexString,
     tokenNameFromHexStringM,
@@ -133,6 +134,12 @@ findOutputToPubKeyHash pkh tx =
                             Nothing -> False
                             Just txPkh -> pkh == txPkh
                        )  tx
+
+findOutputToPubKeyHashM :: forall w s. PubKeyHash -> CardanoTx -> Contract w s GError TxOutRef
+findOutputToPubKeyHashM pkh tx =
+    case findOutputToPubKeyHash pkh tx of
+        Nothing     -> throwError (GTextError "Can't find output to given pkh")
+        Just outRef -> return outRef
 
 
 findOutputToValidatorHash :: ValidatorHash -> CardanoTx -> Maybe TxOutRef

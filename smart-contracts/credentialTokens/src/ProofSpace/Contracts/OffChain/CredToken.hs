@@ -26,9 +26,8 @@ module ProofSpace.Contracts.OffChain.CredToken
       , mintDATCredToken
       , claimDATCredToken
       , getCredRequestCurrencySymbol
-    --, submitNTTCodeRequestForDid
-    --, claimNTTCode
-    --, mintNTTCredToken
+      , submitNTTCodeRequestForDid
+      , mintNTTCredToken
     --, CredTokenSchema (..)
     , CredTokenServiceEndpoints (..)
     , CredTokenUserEndpoints (..)
@@ -59,17 +58,18 @@ import qualified Plutus.V1.Ledger.Value as Value
 import qualified Ledger
 import           Ledger                (PaymentPubKeyHash (..), unPaymentPubKeyHash, 
                                        CurrencySymbol (..),
-                                       txOutRefId, txOutRefIdx)
+                                       txOutRefId, txOutRefIdx,
+                                       toPubKeyHash)
 import qualified Ledger.Ada            as Ada
 import qualified Ledger.Constraints    as Constraints
-import           Ledger.Constraints.OffChain (ScriptLookups,mintingPolicy,otherScript,unspentOutputs)
-import           Ledger.Tx             (ChainIndexTxOut (..), ciTxOutDatum, ciTxOutValue)
+import           Ledger.Constraints.OffChain (ScriptLookups,mintingPolicy,otherScript,unspentOutputs, generalise)
+import           Ledger.Tx             (ChainIndexTxOut (..), ciTxOutDatum, ciTxOutValue, ciTxOutAddress)
 import           Playground.Contract
 import           Plutus.Contract
 import           Plutus.Contract       (ContractError (..))
 import qualified PlutusTx
 import           PlutusTx.Builtins.Class (stringToBuiltinByteString)
-import           PlutusTx.Builtins       (sha2_256)
+import           PlutusTx.Builtins       (sha2_256, appendByteString)
 import           PlutusTx.Lattice        ( (/\) )
 import qualified PlutusTx.Numeric       as PlutusTxNumeric
 import qualified PlutusTx.AssocMap      as AssocMap 
@@ -82,6 +82,7 @@ import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..),
                                                              pkhFromHexStringM,
                                                              txIdFromHexStringM,
                                                              findOutputToPubKeyHash,
+                                                             findOutputToPubKeyHashM,
                                                              findOutputToValidatorHash,
                                                              tokenNameFromHexStringM,
                                                              ) 
@@ -105,7 +106,8 @@ data ContractParams = ContractParams {
         owner :: PubKeyHash,
         publishPrice :: Value,
         claimBackPrice :: Value,
-        credentialAmount :: Integer
+        credentialAmount :: Integer,
+        nttPkh :: PubKeyHash
      }
      deriving stock (Eq, Show, Generic)
      deriving anyclass (FromJSON, ToJSON)
@@ -171,13 +173,15 @@ data ClaimCredTokenDATParams = ClaimCredTokenDATParams {
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
-data MintCredTokenParams = MintCredTokenParams {
-        mctpTxId :: !String,
-        mctpTxInd :: !Integer,
-        mctpCredentialRequest :: !String
-    }
-    deriving stock (Eq, Show, Generic)
-    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
+
+--data MintCredTokenParams = MintCredTokenParams {
+--        mctpTxId :: !String,
+--        mctpTxInd :: !Integer,
+--        mctpCredentialRequest :: !String
+--    }
+--    deriving stock (Eq, Show, Generic)
+--    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
 data GetCredRequestCurrencySymbolParams = GetCredRequestCurrencySymbolParams {
         gcrcspCredRequest   :: !String,
@@ -187,14 +191,47 @@ data GetCredRequestCurrencySymbolParams = GetCredRequestCurrencySymbolParams {
     deriving stock (Eq, Show, Generic)
     deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
 
+data SubmitNTTCodeRequestForDidParams = SubmitNTTCodeRequestForDidParams {
+        sncrfdDid        :: !String,
+        sncrfDidPkh      :: !String, -- ?? are we need this
+        sncrfNonce       :: !String, -- TODO
+        scnrfServicePrice    :: !Value   -- TODO if we think that service should receive a fee for NTT token
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
+
+data TxOutResult = TxOutResult {
+        torId  :: !String,
+        torIdx :: !Integer
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
+
+data MintCredTokenNTTParams = MintCredTokenNTTParams {
+        mctnpDid :: !String,
+        mctnpNonce :: !String,
+        mctnpCredentialRequest :: !String,
+        mctnpMintAmount :: !Integer,
+        mctnpServicePkh :: !String,
+        mctnpServicePrice :: !Value,
+        mctnpSubmitTxId :: !String,
+        mctnpSubmitTxIdx :: !Integer
+    }
+    deriving stock (Eq, Show, Generic)
+    deriving anyclass (FromJSON, ToJSON, ToSchema, ToArgument)
+
 
 type CredTokenUserEndpoints =
          Endpoint "submitCredTokenDATRequest" SubmitCredTokenDATRequestParams
      .\/ Endpoint "claimDATCredToken"  ClaimCredTokenDATParams
+     .\/ Endpoint "submitNTTCodeRequestForDid" SubmitNTTCodeRequestForDidParams
 
 
 type CredTokenServiceEndpoints =
          Endpoint "mintDATCredToken"  MintCredTokenDATRequestParams
+     .\/ Endpoint "mintNTTCredToken" MintCredTokenNTTParams    
      .\/ Endpoint "getCredRequestCurrencySymbol"   GetCredRequestCurrencySymbolParams
 
 
@@ -230,9 +267,7 @@ submitCredTokenDATRequest = endpoint @"submitCredTokenDATRequest" @SubmitCredTok
 mintDATCredToken :: ContractParams -> Promise () CredTokenServiceEndpoints GError MintCredTokenDATRequestResult 
 mintDATCredToken contractParams =  endpoint @"mintDATCredToken" @MintCredTokenDATRequestParams $ \params -> do
     let binCredentialRequest = stringToBuiltinByteString (mctdrpCredentialRequest params)
-    authority <- case pkhFromHexString (mctdrpServicePkh params) of
-                        Left msg -> throwError (GTextError msg)
-                        Right value -> return value 
+    authority <- pkhFromHexStringM (mctdrpServicePkh params) 
     let onchainMintParams = CredTokenParams {
         ctpAuthority = authority,
         ctpCredentialRequest = binCredentialRequest,
@@ -336,4 +371,82 @@ getCredRequestCurrencySymbol = endpoint @"getCredRequestCurrencySymbol" @GetCred
     let currencySymbol = computeCredRequestCurrencySymbol credTokenParams
     return (show currencySymbol)
 
+
+---
+--- when user want to initiat NTT Token
+---
+submitNTTCodeRequestForDid :: ContractParams -> Promise () CredTokenUserEndpoints GError TxOutResult
+submitNTTCodeRequestForDid contractParams = endpoint @"submitNTTCodeRequestForDid" @SubmitNTTCodeRequestForDidParams $ \params -> do
+    logInfo @String $ "submit request for ntt"
+    let binDid =  stringToBuiltinByteString ( sncrfdDid params )
+    let binNonce = stringToBuiltinByteString (sncrfNonce params )
+    let datum = Datum (PlutusTx.toBuiltinData (appendByteString binDid binNonce))
+    let amount = (publishPrice contractParams) <> (scnrfServicePrice params)
+    -- TODO:  script instead nttContractOwner ?
+    let nttContractOwnerPkh = (nttPkh contractParams)
+    let payConstraint = Constraints.mustPayWithDatumToPubKey (PaymentPubKeyHash nttContractOwnerPkh) datum amount
+    tx <- submitTx payConstraint
+    output <- findOutputToPubKeyHashM nttContractOwnerPkh tx
+    return $ TxOutResult {
+       torId = show (txOutRefId output),
+       torIdx = txOutRefIdx output
+    }
+
+
+
+
+---
+--- when authority initiate NTTToken for address,
+--- assuming that authority know correct address and already recieve
+--- payment in some way.
+--- SubmitAuthorityNTTRequest :: ContractParams
+mintNTTCredToken :: ContractParams -> Promise () CredTokenServiceEndpoints GError TxOutResult
+mintNTTCredToken contractParams = endpoint @"mintNTTCredToken" @MintCredTokenNTTParams $ \params -> do
+    logInfo @String $ "submit request for minting ntt"    
+    let binCredentialRequest = stringToBuiltinByteString (mctnpCredentialRequest params)
+    authority <- pkhFromHexStringM (mctnpServicePkh params) 
+    let onchainMintParams = CredTokenParams {
+        ctpAuthority = authority,
+        ctpCredentialRequest = binCredentialRequest,
+        ctpType = CredTokenNTT
+    }
+    let nttMintingPolicy = (credTokenNTTMintingPolicyScript onchainMintParams)
+    let nttMintingPolicyHash = UtilsScripts.mintingPolicyHash nttMintingPolicy
+    submitTxId <- txIdFromHexStringM (mctnpSubmitTxId params)
+    let submitOutRef = TxOutRef {
+        txOutRefId = submitTxId,
+        txOutRefIdx = (mctnpSubmitTxIdx params)
+    } 
+    mbSubmitOut <- unspentTxOutFromRef submitOutRef
+    submitOut <- case mbSubmitOut of
+                     Nothing -> throwError (GTextError "Can't retrievesupplied transaction")
+                     Just value -> return value
+    let holderAddress = (view ciTxOutAddress submitOut)
+    holderPkh <- case toPubKeyHash holderAddress of
+                     Nothing -> throwError (GTextError "NTT shoukd not be minted for script address")
+                     Just pkh -> return pkh
+    let holderPkhBytes = Ledger.getPubKeyHash holderPkh
+    let nttTokenName = TokenName holderPkhBytes
+    let nttAmount = mctnpMintAmount params                 
+    let mintConstraint = Constraints.mustMintCurrency nttMintingPolicyHash nttTokenName nttAmount
+    let nttCurrencySymbol = Value.mpsSymbol nttMintingPolicyHash
+    let nttValue = Value.singleton nttCurrencySymbol nttTokenName nttAmount
+    let holderPayConstraints = Constraints.mustPayToPubKey (PaymentPubKeyHash holderPkh) nttValue
+    let ownerPkh = owner contractParams
+    let ownerPayConstraint = Constraints.mustPayToPubKey (PaymentPubKeyHash ownerPkh) (publishPrice contractParams)
+    let servicePayConstraint = Constraints.mustPayToPubKey (PaymentPubKeyHash authority) (mctnpServicePrice params)
+    let useConstraint = Constraints.mustSpendPubKeyOutput submitOutRef
+    let binDid = stringToBuiltinByteString (mctnpDid params)
+    let binNonce = stringToBuiltinByteString (mctnpNonce params)
+    let datum = (Datum (PlutusTx.toBuiltinData (appendByteString binDid binNonce)))
+    let datumConstraint = Constraints.mustIncludeDatum datum
+    let constraints = mintConstraint <> holderPayConstraints <> ownerPayConstraint 
+                      <> servicePayConstraint <> useConstraint <> datumConstraint
+    let lookups  = generalise (mintingPolicy nttMintingPolicy)
+    tx <- submitTxConstraintsWith lookups constraints
+    output <- findOutputToPubKeyHashM holderPkh tx
+    return $ TxOutResult {
+        torId = show (txOutRefId output),
+        torIdx =txOutRefIdx output
+    }
 

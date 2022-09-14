@@ -20,7 +20,7 @@
 
 
 -- | Receive 
-module Plutus.Contracts.OnChain.DidAddress
+module ProofSpace.Contracts.OnChain.DidAddress
     ( 
       SubmitDidDatum (..),
       ClaimDidDatum (..)

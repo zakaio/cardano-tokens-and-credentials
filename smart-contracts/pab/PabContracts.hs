@@ -26,8 +26,8 @@ import           Plutus.Contract                     (ContractError)
 import           Plutus.PAB.Effects.Contract.Builtin (SomeBuiltin (..))
 import qualified Plutus.PAB.Effects.Contract.Builtin as Builtin
 import           Prettyprinter                       (Pretty (..), viaShow)
-import           Plutus.Contracts.OffChain.DidAddress       as DidAddress
-import           Plutus.Contracts.OffChain.LockValue        as LockValue
+import           ProofSpace.Contracts.OffChain.DidAddress       as DidAddress
+import           ProofSpace.Contracts.OffChain.LockValue        as LockValue
 
 
 

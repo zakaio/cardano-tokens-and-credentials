@@ -21,7 +21,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 
-module Plutus.Contracts.OffChain.ProofspaceCommon(
+module ProofSpace.Contracts.OffChain.ProofspaceCommon(
     GError (..),
     pkhFromHexString,
     pkhFromHexStringM,

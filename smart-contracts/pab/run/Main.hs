@@ -25,9 +25,9 @@ import           Plutus.PAB.Run                      (runWith)
 import           Prettyprinter                       (Pretty (..), viaShow)
     
 
-import qualified Plutus.Contracts.OffChain.DidAddress as DidAddress
-import           Plutus.Contracts.OffChain.DidAddress  (ContractParams (..))
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
+import qualified ProofSpace.Contracts.OffChain.DidAddress as DidAddress
+import           ProofSpace.Contracts.OffChain.DidAddress  (ContractParams (..))
+import           ProofSpace.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
 
 
 import           qualified PabContracts              as PabContracts

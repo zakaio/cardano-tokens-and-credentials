@@ -23,7 +23,7 @@
 
 
 -- | Receive 
-module Plutus.Contracts.OffChain.DidAddress
+module ProofSpace.Contracts.OffChain.DidAddress
     ( submitDid
     , claimDid
     , mintDid
@@ -76,7 +76,7 @@ import qualified PlutusTx.Numeric       as PlutusTxNumeric
 import           Prelude             
 import qualified Plutus.Script.Utils.V1.Scripts as UtilsScripts
 import qualified Plutus.Script.Utils.V1.Typed.Scripts as TScripts
-import           Plutus.Contracts.OnChain.DidAddress (SubmitDidDatum (..),
+import           ProofSpace.Contracts.OnChain.DidAddress (SubmitDidDatum (..),
                                                       ClaimDidDatum (..),
                                                       didAddressMintingPolicyScript,
                                                       didAddressTokenCurrency,
@@ -85,7 +85,7 @@ import           Plutus.Contracts.OnChain.DidAddress (SubmitDidDatum (..),
                                                       claimDidInstance,
                                                       claimDidValidator
                                                      )
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
+import           ProofSpace.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
 
 
 

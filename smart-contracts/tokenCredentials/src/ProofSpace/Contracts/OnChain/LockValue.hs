@@ -33,7 +33,7 @@
 -- (TODO: think about situation when user lost credential.
 ---       maybe prepare version without datum for this)
 --
-module Plutus.Contracts.OnChain.LockValue(
+module ProofSpace.Contracts.OnChain.LockValue(
            LockValueParams (..),
            LockValueDatum (..),
            lockValueValidator,

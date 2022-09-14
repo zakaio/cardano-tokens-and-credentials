@@ -77,7 +77,7 @@ import           Prelude
 import qualified Plutus.Script.Utils.V1.Scripts as UtilsScripts
 import qualified Plutus.Script.Utils.V1.Typed.Scripts as TScripts
 
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), 
+import           ProofSpace.Contracts.OffChain.ProofspaceCommon (GError (..), 
                                                              pkhFromHexString,
                                                              pkhFromHexStringM,
                                                              txIdFromHexStringM,

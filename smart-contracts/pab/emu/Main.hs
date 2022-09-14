@@ -44,8 +44,8 @@ import           Schema                              (FormSchema)
 import Plutus.PAB.Effects.Contract                   (ContractEffect (..))
 
 -- local
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
-import           Plutus.Contracts.OffChain.DidAddress
+import           ProofSpace.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString) 
+import           ProofSpace.Contracts.OffChain.DidAddress
 --import qualified PabContracts                        as PabContracts
 import           PabContracts                        (PabContracts (..))
 

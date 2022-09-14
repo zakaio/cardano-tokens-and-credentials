@@ -20,7 +20,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Plutus.Contracts.OffChain.LockValue(
+module ProofSpace.Contracts.OffChain.LockValue(
            LockValueSchema,
            lockValueContract
         )where
@@ -51,10 +51,10 @@ import           Playground.Contract
 import qualified PlutusTx
 import           PlutusTx.Builtins.Class (stringToBuiltinByteString)
 
-import           Plutus.Contracts.OnChain.LockValue (LockValueDatum (..), LockValueParams (..),
+import           ProofSpace.Contracts.OnChain.LockValue (LockValueDatum (..), LockValueParams (..),
                                                      validateLockValueInstance,
                                                     )                       
-import           Plutus.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString, txIdFromHexString) 
+import           ProofSpace.Contracts.OffChain.ProofspaceCommon (GError (..), pkhFromHexString, txIdFromHexString) 
 
 
 

@@ -1,7 +1,5 @@
 
 
-val akkaVersion = "2.6.19"
-val akkaHttpVersion = "10.2.9"
 
 
 resolvers += "IOHK repo" at "https://maven.pkg.github.com/input-output-hk/atala-prism-sdk"
@@ -11,12 +9,14 @@ resolvers += "Kotlinx coroutines" at "https://maven.pkg.jetbrains.space/public/p
 
 
 name := "token-search"
-scalaVersion := "3.1.1"
+scalaVersion := "3.2.0"
 libraryDependencies ++= Seq(
  
-  ("com.typesafe.akka" %% "akka-actor-typed" % akkaVersion).cross(CrossVersion.for3Use2_13),
-  ("com.typesafe.akka" %% "akka-stream" % akkaVersion).cross(CrossVersion.for3Use2_13),
-  ("com.typesafe.akka" %% "akka-http" % akkaHttpVersion).cross(CrossVersion.for3Use2_13),
+
+  "com.softwaremill.sttp.tapir" %% "tapir-core" % "1.1.0",
+  // -- incompatible with org.scala-lang.modules:scala-java8-compat_2.13:1.0.0 from akka for scala-2.13
+  //"com.softwaremill.sttp.tapir" %% "tapir-armeria-server" % "1.1.0",
+  "com.softwaremill.sttp.tapir" %% "tapir-netty-server" % "1.1.0",
  
   "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-core"   % "2.13.38",
   "com.github.plokhotnyuk.jsoniter-scala" %% "jsoniter-scala-macros" % "2.13.38" % "compile-internal",

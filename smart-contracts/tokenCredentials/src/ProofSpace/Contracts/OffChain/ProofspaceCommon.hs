@@ -57,6 +57,7 @@ import           Ledger               (PubKeyHash(..), pubKeyHash,
                                        ) 
 import           Ledger.Bytes         (LedgerBytes(LedgerBytes), fromHex)
 import           Plutus.V1.Ledger.Api (BuiltinByteString (..), TokenName (..), ValidatorHash (..))
+--import           qualified Codec.Binary.Bech32 as Bech32
 
 
 data GError =   GTextError Text
@@ -112,6 +113,22 @@ byteStringFromHexStringM s =
         Left  msg -> throwError (GTextError msg)
         Right bytes -> return bytes
     
+
+-- TODO:  implement fully
+--addressFromHexString :: String -> Either Text Address =
+--addressFromHexString s =
+--    case Bech32.decode s of
+--        Left(decodingError) -> Left(show decodingError)
+--        Right((hrd,data)) -> case Bech32.dataPartToBytes of
+--                               Nothing -> Left "Can't get bech32 bytes"
+--                               Just bs -> 
+--                                  let
+--                                    payload = tail bs
+--                                  in
+--                                    case (head bs) of -- see CIP5
+--                                       6 -> 
+            
+
 
 
 --

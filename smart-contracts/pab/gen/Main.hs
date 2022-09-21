@@ -57,7 +57,7 @@ writeValidator options validator = do
         -- not exported form cardano-node
         --let content = textEnvelopeToJSON @(PlutusScript PlutusScriptV1) Nothing (serializedScript validator)
         let content = encodePretty'  defConfig (serialiseToTextEnvelope @(PlutusScript PlutusScriptV1)  Nothing (serializedScript validator))
-        _ <- print(content)
+        _ <- LBS.putStrLn(content)
         return (Right Nothing) 
     else
         do
@@ -108,11 +108,18 @@ command args options =
                 help
             else
                 case head args of
-                    "--out"  -> commandWithOutOption (tail args) options
-                    "--stdout" -> command (tail args) (options {stdout = True})
+                    "--out"  -> continueWithOut
+                    "++out"  -> continueWithOut
+                    "--stdout" -> continueWithStdout
+                    "++stdout"  -> continueWithStdout
                     "lock-value" -> genLockValue (tail args) options
                     other  ->
                             return (Left ("Unknown script: "<> other))
+                where
+                    continueWithOut = commandWithOutOption (tail args) options
+                    continueWithStdout = command (tail args) (options {stdout = True})
+
+
 
 commandWithOutOption :: [String] -> Options -> IO (Either String (Maybe String))
 commandWithOutOption args options = 

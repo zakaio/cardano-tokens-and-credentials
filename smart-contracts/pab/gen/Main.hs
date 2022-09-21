@@ -18,9 +18,10 @@ module Main(main) where
 import           Cardano.Api
 import           Cardano.Api.Shelley                 (PlutusScript (..))
 import           Codec.Serialise                     (serialise)
-import           Data.Aeson.Encode.Pretty            (defConfig, encodePretty' )
+import           Data.Aeson.Encode.Pretty            (encodePretty )
 import qualified Data.ByteString.Lazy  as LBS
 import qualified Data.ByteString.Short as SBS
+import qualified Data.ByteString.Lazy.Char8 as LChar8
 import           Data.Time
 import           Data.Time.Clock.POSIX               (getPOSIXTime)
 import qualified Ledger
@@ -40,33 +41,34 @@ data Options = Options {
 
 help :: IO (Either String a)
 help = do
-            _ <- print("Usage: proofspace-token-credential-gen [options] script params")
-            _ <- print("options is one of:")
-            _ <- print("   --out fname     output script to fname (default: onchain.json)")
-            _ <- print("   --stdout        output script to stdout")
-            _ <- print("")
-            _ <- print("and script params is one-of:")
-            _ <- print("   lock-value  [posix-time]")
-            _ <- print("                           ")
+            putStrLn("Usage: proofspace-token-credential-gen [options] script params")
+            putStrLn("options is one of:")
+            putStrLn("   --out fname     output script to fname (default: onchain.json)")
+            putStrLn("   --stdout        output script to stdout")
+            putStrLn("")
+            putStrLn("and script params is one-of:")
+            putStrLn("   lock-value  [posix-time]")
+            putStrLn("")
             return (Left "No operation to perform" ) 
 
 writeValidator :: Options -> Scripts.Validator -> IO (Either (FileError ()) (Maybe String))
 writeValidator options validator = do
-    let serializedScript = PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise . Scripts.unValidatorScript
+    let serialiseScript = PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise . Scripts.unValidatorScript
+    let serialisedScript = serialiseScript validator
+    let scriptAddress = Ledger.scriptAddress validator
+    let scriptJson = encodePretty (serialiseToTextEnvelope @(PlutusScript PlutusScriptV1)  Nothing serialisedScript)
+    let addressJson = encodePretty scriptAddress
+    let content = "[\n"  <> (LChar8.unpack addressJson) <> "\n,\n" <> (LChar8.unpack scriptJson) <> "\n]"
     if (stdout options) then do
         -- not exported form cardano-node
         --let content = textEnvelopeToJSON @(PlutusScript PlutusScriptV1) Nothing (serializedScript validator)
-        let content = encodePretty'  defConfig (serialiseToTextEnvelope @(PlutusScript PlutusScriptV1)  Nothing (serializedScript validator))
-        _ <- LBS.putStrLn(content)
-        return (Right Nothing) 
+        putStrLn(content)
+        return (Right Nothing)
     else
         do
             let file = outFile options
-            writeResult <- writeFileTextEnvelope @(PlutusScript PlutusScriptV1) file Nothing (serializedScript validator)
-            let result = case writeResult of
-                    Left err -> Left err
-                    Right _  -> Right (Just file) 
-            return result
+            _ <- writeFile file content
+            return (Right (Just file))
         
 
 
@@ -143,7 +145,7 @@ main = do
                                    _ <- System.Exit.die("No operation performed:" <> message)
                                    return ()
                 Right (Just fname)  -> do 
-                                     print("ok:"<> fname)
+                                     putStrLn("ok:"<> fname)
                                      return ()
                 Right Nothing -> return ()
                                    

@@ -77,6 +77,7 @@ data LockValueToCredResult = LockValueToCredResult {
 
 data ClaimLockedValueParams = ClaimLockedValueParams {
       clvTxIdS :: String,
+      clvTxIdx :: Integer,
       clvCode :: String
     }
     deriving stock (Eq, Show, Generic)
@@ -120,7 +121,7 @@ claimLockedValue = endpoint @"claimLockedValue" @ClaimLockedValueParams $ \param
                        Right txId -> return txId
     let txOutRef = Ledger.TxOutRef {
         txOutRefId = txOutRefId,
-        txOutRefIdx = 0
+        txOutRefIdx = (clvTxIdx params)
     }
     -- TOSO:  what is the guarantee that transaction have only one utxo (?)
     mbUtxos <- unspentTxOutFromRef txOutRef

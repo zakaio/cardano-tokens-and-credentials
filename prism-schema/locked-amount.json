@@ -3,6 +3,10 @@
  "version": "1.0",
  "id":"https://proofspace.id/prism-schemas/token-credentials/locked-amound",
  "description":  "proof, that address linked to did have some amount locked in smart-contract",
+ "author": "ProofSpace",
+ "trustRegistry": {
+	 "type" : "permissionless"
+ },
  "properties": {
     "tag": { "type": "string" },
     "address": { "type": "string"},
@@ -19,7 +23,12 @@
 	    "type" : "string",
 	    "title" : "Unlock Key",
 	    "description" : "If this value is not 'none', than entity who receive this credential can unlock amount and receive token"
-       }
+       },
+    "issuedDate": {
+	 "type": "timestamp",
+	 "description": "When this credential was issued",
+	 "timeOf" : "issuing"
+    }
  }
 }
 

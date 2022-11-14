@@ -1,8 +1,8 @@
 {
- "name": "Link between DID and Address",
+ "name": "AddressDID",
  "version": "1.0",
  "id":"https://proofspace.id/prism-schemas/token-credentials/did-address-link",
- "description": ""
+ "description": "Link between DID and Address",
  "properties": {
     "address": { "type": "string"},
     "transactionId": { "type" : "string" },

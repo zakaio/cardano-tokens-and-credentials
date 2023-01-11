@@ -16,21 +16,27 @@
 module Main(main) where
 
 import           Cardano.Api
-import           Cardano.Api.Shelley                 (PlutusScript (..))
+import           Cardano.Api.Shelley                 (PlutusScript (..), shelleyPayAddrToPlutusPubKHash)
 import           Codec.Serialise                     (serialise)
+import qualified Codec.Binary.Bech32   as Bech32
 import           Data.Aeson.Encode.Pretty            (encodePretty )
 import qualified Data.ByteString.Lazy  as LBS
 import qualified Data.ByteString.Short as SBS
 import qualified Data.ByteString.Lazy.Char8 as LChar8
+import qualified Data.Text            as  Text
 import           Data.Time
 import           Data.Time.Clock.POSIX               (getPOSIXTime)
 import qualified Ledger
 import qualified Ledger.Scripts                       as Scripts
 import qualified Plutus.Script.Utils.V1.Typed.Scripts as Scripts
+import qualified Plutus.Script.Utils.V1.Scripts       as UntypedScripts
+import           PlutusTx.Builtins.Class              (stringToBuiltinByteString)
 import qualified System.Environment
 import qualified System.Exit
 
 import           ProofSpace.Contracts.OnChain.LockValue  
+import           ProofSpace.Contracts.OnChain.CredToken
+import           ProofSpace.Contracts.OffChain.ProofspaceCommon (pkhFromHexStringM)
 
 data Options = Options {
     outFile :: String,
@@ -48,6 +54,7 @@ help = do
             putStrLn("")
             putStrLn("and script params is one-of:")
             putStrLn("   lock-value  [posix-time]")
+            putStrLn("   mint-ntt address credentialString")
             putStrLn("")
             return (Left "No operation to perform" ) 
 
@@ -59,9 +66,11 @@ writeValidator options validator = do
     let scriptJson = encodePretty (serialiseToTextEnvelope @(PlutusScript PlutusScriptV1)  Nothing serialisedScript)
     let addressJson = encodePretty scriptAddress
     let content = "[\n"  <> (LChar8.unpack addressJson) <> "\n,\n" <> (LChar8.unpack scriptJson) <> "\n]"
-    if (stdout options) then do
-        -- not exported form cardano-node
-        --let content = textEnvelopeToJSON @(PlutusScript PlutusScriptV1) Nothing (serializedScript validator)
+    writeContent options content
+        
+writeContent :: Options -> String -> IO (Either (FileError ()) (Maybe String))
+writeContent options content =
+     if (stdout options) then do
         putStrLn(content)
         return (Right Nothing)
     else
@@ -69,7 +78,6 @@ writeValidator options validator = do
             let file = outFile options
             _ <- writeFile file content
             return (Right (Just file))
-        
 
 
 writeLockValueValidaror :: Ledger.POSIXTime -> Options -> IO (Either (FileError ()) (Maybe String))
@@ -102,7 +110,47 @@ genLockValue nextArgs options =
                                     Right optFname   ->  Right optFname
                     return result
 
-              
+
+writeMintingPolicy :: Options -> Scripts.MintingPolicy -> IO (Either (FileError ()) (Maybe String) )
+writeMintingPolicy  options mintingPolicy = do
+     let serialiseScript = PlutusScriptSerialised . SBS.toShort . LBS.toStrict . serialise . Scripts.unMintingPolicyScript
+     let serialisedScript = serialiseScript mintingPolicy
+     let scriptHash = UntypedScripts.mintingPolicyHash mintingPolicy
+     let scriptJson =  encodePretty (serialiseToTextEnvelope @(PlutusScript PlutusScriptV1)  Nothing serialisedScript)
+     let scriptHashJson = encodePretty scriptHash
+     let content = "[\n"  <> (LChar8.unpack scriptHashJson) <> "\n,\n" <> (LChar8.unpack scriptJson) <> "\n]"
+     writeContent options content
+
+writeCredNTTMintingScript :: String -> String -> Options -> IO (Either (FileError ()) (Maybe String) )
+writeCredNTTMintingScript  address credentialString options = do
+     let addr = case (deserialiseFromBech32 AsShelleyAddress (Text.pack address)) of
+                   Right addr -> addr
+                   Left decodingError -> error (show decodingError)
+     let pkh = case shelleyPayAddrToPlutusPubKHash addr of
+                   Just pkh -> pkh
+                   Nothing  -> error ("given address (" ++ (show address) ++") is not based on public key")
+     let binCredentialString = stringToBuiltinByteString credentialString
+     let mintParams = CredTokenParams {
+            ctpAuthority = pkh,
+            ctpCredentialRequest = binCredentialString,
+            ctpType = CredTokenNTT
+     }
+     let nttMintingPolicy = (credTokenNTTMintingPolicyScript mintParams)
+     writeMintingPolicy options nttMintingPolicy
+
+genMintNTT :: [String] -> Options -> IO (Either String (Maybe String))
+genMintNTT nextArgs options =
+    case nextArgs of
+        [address,credentialString] -> do
+            writeResult <- writeCredNTTMintingScript address credentialString options
+            let result = case result of
+                           Left err -> Left (show err)
+                           Right optFname -> Right optFname
+            return result
+        _  ->
+            return $ Left "mint-ntt require two arguments (address, credential-string), missing both"
+
+
 
 command :: [String] -> Options  -> IO (Either String (Maybe String))
 command args options =  
@@ -115,6 +163,7 @@ command args options =
                     "--stdout" -> continueWithStdout
                     "++stdout"  -> continueWithStdout
                     "lock-value" -> genLockValue (tail args) options
+                    "mint-ntt" -> genMintNTT (tail args) options
                     other  ->
                             return (Left ("Unknown script: "<> other))
                 where

@@ -143,7 +143,7 @@ genMintNTT nextArgs options =
     case nextArgs of
         [address,credentialString] -> do
             writeResult <- writeCredNTTMintingScript address credentialString options
-            let result = case result of
+            let result = case writeResult of
                            Left err -> Left (show err)
                            Right optFname -> Right optFname
             return result

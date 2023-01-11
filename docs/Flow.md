@@ -78,9 +78,9 @@ sequenceDiagram
 actor Customer
 
 Customer ->> Blockchain: (1) submitNTTCodeRequestForDid
-TCProxy ->> Customer: (3)  send code
-Customer ->> Blockchain: (4)  claimNTTCode
-TCProxy ->> Blockchain: (5) mintNTTCredToken
+TCProxy ->> Customer: (2)  send code
+Customer ->> Blockchain: (3)  claimNTTCode
+TCProxy ->> Blockchain: (4) mintNTTCredToken
 
 ```
 
